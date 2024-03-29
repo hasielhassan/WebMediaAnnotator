@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video FreeHand Annotator</title>
+  <style>
+
+    #toolbarContainer {
+        /* Style the container div */
+        display: flex;
+        justify-content: center;
+        gap: 10px;  /* Add 10px gap between buttons */
+        position: relative;
+        width: 60%;  /* Adjust width as desired */
+        height: auto;  /* Adjust height as desired */
+        margin: 0 auto;  /* Center the container horizontally */
+        border: 1px solid #ccc;  /* Optional: Add a border */
+        background-color: black;
+        color: #ccc;
+    }
+
+    #videoContainer {
+        /* Style the container div */
+        position: relative;
+        width: 60%;  /* Adjust width as desired */
+        height: 100%;  /* Adjust height as desired */
+        margin: 0 auto;  /* Center the container horizontally */
+        border: 1px solid #ccc;  /* Optional: Add a border */
+        background-color: black;
+    }
+
+    #videoElement {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    #canvasElement {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+    }
+
+
+    #timelineContainer {
+        display: flex;
+        justify-content: center;
+        margin: 0 auto; /* Center horizontally */
+    }
+
+    #timelineSlider {
+        width: 60%; /* Adjust width as desired */
+        height: 10px; /* Adjust height as desired */
+        background: #d3d3d3; /* Background color for the track */
+        border-radius: 5px; /* Add rounded corners */
+        cursor: pointer; /* Indicate clickable cursor */
+    }
+
+    #controlsContainer {
+        /* Style the container div */
+        display: flex;
+        justify-content: center;
+        gap: 10px;  /* Add 10px gap between buttons */
+        position: relative;
+        width: 60%;  /* Adjust width as desired */
+        height: auto;  /* Adjust height as desired */
+        margin: 0 auto;  /* Center the container horizontally */
+        border: 1px solid #ccc;  /* Optional: Add a border */
+        background-color: black;
+    }
+
+    /* Style the control buttons */
+    button {
+        background-color: #333;  /* Dark gray background */
+        color: #fff;              /* White text color */
+        border: none;             /* Remove border */
+        padding: 10px 20px;       /* Add some padding for spacing */
+        font-size: 16px;           /* Set font size */
+        cursor: pointer;          /* Indicate clickable cursor */
+        transition: background-color 0.2s ease-in-out;  /* Add smooth hover effect */
+    }
+
+    /* Style for button hover */
+    button:hover {
+        background-color: #222;  /* Slightly darker background on hover */
+    }
+
+  </style>
+</head>
+<body>
+    <div id="toolbarContainer">
+        <label for="strokeColor">Stroke Color:</label>
+        <input type="color" id="strokeColorPicker" value="#FF0000">
+        <label for="strokeSize">Stroke Size:</label>
+        <input type="number" id="strokeSizeInput" value="3" min="1">
+    </div>
+    <div id="videoContainer">
+        <video id="videoElement" class="video-js"></video>
+        <canvas id="canvasElement"></canvas>
+    </div>
+    <div id="timelineContainer">
+        <input type="range" id="timelineSlider" min="0" max="0" />
+    </div>
+    <div id="controlsContainer">
+        <button id="prevFrame">Previous Frame</button>
+        <button id="playPause">Play</button>
+        <button id="nextFrame">Next Frame</button>
+        <button id="saveFrame">Save Frame</button>
+    </div>
+</body>
+<script>
+
+const videoElement = document.getElementById('videoElement');
+const canvasElement = document.getElementById('canvasElement');
+const ctx = canvasElement.getContext('2d');
+const prevFrameBtn = document.getElementById('prevFrame');
+const nextFrameBtn = document.getElementById('nextFrame');
+const playPauseBtn = document.getElementById('playPause');
+const timelineContainer = document.getElementById('timelineContainer');
+const timelineSlider = document.getElementById('timelineSlider');
+const strokeColorPicker = document.getElementById('strokeColorPicker');
+const strokeSizeInput = document.getElementById('strokeSizeInput');
+
+let currentFrame = 0;
+const FRAMES_PER_SECOND = 30; // Adjust based on your video's frame rate
+
+// Function to load video and set canvas dimensions
+function loadVideo(videoSrc) {
+  videoElement.src = videoSrc;
+  videoElement.onloadedmetadata = () => {
+    canvasElement.width = videoElement.offsetWidth;
+    canvasElement.height = videoElement.offsetHeight;
+    console.log(canvasElement.width, canvasElement.height);
+    let lastFrame = videoElement.duration * FRAMES_PER_SECOND;
+    console.log(lastFrame);
+    timelineSlider.max = lastFrame;
+  };
+}
+
+function updatePlaybackFrame() {
+    currentFrame = videoElement.currentTime * FRAMES_PER_SECOND;
+    console.log(currentFrame);
+    timelineSlider.value = currentFrame; // Set slider value to current frame
+    updateFrame();
+}
+
+timelineSlider.addEventListener('change', () => {
+  const newFrame = timelineSlider.value;
+  const newTime = newFrame / FRAMES_PER_SECOND;
+  videoElement.currentTime = newTime;
+  updateFrame(); // Update frame for visual consistency
+});
+
+playPauseBtn.addEventListener('click', () => {
+    if (videoElement.paused) {
+        playPauseBtn.innerText = 'Pause';
+        videoElement.play(); 
+    } else {
+        playPauseBtn.innerText = 'Play';
+        videoElement.pause(); 
+    }
+});
+
+prevFrameBtn.addEventListener('click', () => {
+  if (currentFrame > 0) {
+    currentFrame--;
+    updateTime();
+    updateFrame(); // Improved function to handle frame updates
+  }
+});
+
+nextFrameBtn.addEventListener('click', () => {
+  // Check if current frame is less than video duration
+  let lastFrame = videoElement.duration * FRAMES_PER_SECOND;
+  console.log(lastFrame);
+  if (currentFrame < lastFrame) {
+    currentFrame++;
+    updateTime();
+    updateFrame();
+  }
+});
+
+function updateTime() {
+    const frameTime = currentFrame / FRAMES_PER_SECOND;
+    console.log(frameTime);
+    videoElement.currentTime = frameTime;
+}
+
+function updateFrame() {
+    ctx.drawImage(
+        videoElement, 0, 0, 
+        canvasElement.width, 
+        canvasElement.height
+    );
+}
+
+let isDrawing = false;
+let lastX, lastY;
+
+canvasElement.addEventListener('mousedown', (e) => {
+  isDrawing = true;
+  lastX = e.offsetX;
+  lastY = e.offsetY;
+});
+
+canvasElement.addEventListener('mouseup', () => {
+  isDrawing = false;
+});
+
+canvasElement.addEventListener('mousemove', (e) => {
+  if (isDrawing) {
+    ctx.strokeStyle = strokeColorPicker.value;
+    ctx.lineWidth = strokeSizeInput.value;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(e.offsetX, e.offsetY);
+    ctx.stroke();
+    lastX = e.offsetX;
+    lastY = e.offsetY;
+  }
+});
+
+const saveFrameBtn = document.getElementById('saveFrame');
+
+saveFrameBtn.addEventListener('click', () => {
+  const imageURL = canvasElement.toDataURL('image/png');
+  const currentFrameInt = parseInt(currentFrame);
+  const filename = `frame-${currentFrameInt}.png`;
+  const link = document.createElement('a');
+  link.href = imageURL;
+  link.download = filename;
+  link.click();
+});
+
+// When document is ready
+window.onload = function() {
+    console.log("Entire page is loaded!");
+    loadVideo('http://localhost:8000/mov_bbb.mp4');
+    currentFrame++;
+    updateTime();
+    updateFrame();
+
+    // Assign an ontimeupdate event to the <video> element, and execute 
+    //a function if the current playback position has changed
+    videoElement.ontimeupdate = function() {updatePlaybackFrame()};
+
+};
+</script>
+</html>
