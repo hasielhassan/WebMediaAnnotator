@@ -12,12 +12,14 @@
         justify-content: center;
         gap: 10px;  /* Add 10px gap between buttons */
         position: relative;
-        width: 60%;  /* Adjust width as desired */
+        width: 59%;  /* Adjust width as desired */
         height: auto;  /* Adjust height as desired */
         margin: 0 auto;  /* Center the container horizontally */
+        padding: 10px;  /* Add some padding for spacing */
         border: 1px solid #ccc;  /* Optional: Add a border */
         background-color: black;
         color: #ccc;
+        font-size: 16px;           /* Set font size */
     }
 
     #videoContainer {
@@ -62,9 +64,10 @@
         justify-content: center;
         gap: 10px;  /* Add 10px gap between buttons */
         position: relative;
-        width: 60%;  /* Adjust width as desired */
+        width: 59%;  /* Adjust width as desired */
         height: auto;  /* Adjust height as desired */
         margin: 0 auto;  /* Center the container horizontally */
+        padding: 10px;  /* Add some padding for spacing */
         border: 1px solid #ccc;  /* Optional: Add a border */
         background-color: black;
     }
@@ -74,8 +77,8 @@
         background-color: #333;  /* Dark gray background */
         color: #fff;              /* White text color */
         border: none;             /* Remove border */
-        padding: 10px 20px;       /* Add some padding for spacing */
-        font-size: 16px;           /* Set font size */
+        padding: 5px 10px;       /* Add some padding for spacing */
+        font-size: 14px;           /* Set font size */
         cursor: pointer;          /* Indicate clickable cursor */
         transition: background-color 0.2s ease-in-out;  /* Add smooth hover effect */
     }
@@ -101,6 +104,7 @@
         <input type="color" id="strokeColorPicker" value="#FF0000">
         <label for="strokeSize">Stroke Size:</label>
         <input type="number" id="strokeSizeInput" value="3" min="1">
+        <button id="clear">Clear</button>
     </div>
     <div id="videoContainer">
         <video id="videoElement" class="video-js"></video>
@@ -132,6 +136,7 @@ const timelineContainer = document.getElementById('timelineContainer');
 const timelineSlider = document.getElementById('timelineSlider');
 const strokeColorPicker = document.getElementById('strokeColorPicker');
 const strokeSizeInput = document.getElementById('strokeSizeInput');
+const clearBtn = document.getElementById('clear');
 const saveFrameBtn = document.getElementById('saveFrame');
 const saveFramesBtn = document.getElementById('saveFrames');
 const timelineMarkers = document.getElementById("timelineMarkers");
@@ -284,6 +289,37 @@ canvasElement.addEventListener('mousemove', (e) => {
     ctx.stroke();
     lastX = e.offsetX;
     lastY = e.offsetY;
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  // Check if drawing exists for current frame
+  const frameDrawing = frameDrawings[currentFrame];
+  if (frameDrawing) {
+    // remove the drawing
+    frameDrawings[currentFrame] = null;
+
+    // remove the timeline marker
+    // loop through each option and search for the current frame
+    for (let i = timelineMarkers.options.length - 1; i >= 0; i--) {
+      const option = timelineMarkers.options[i];
+      console.log(option);
+      if (option.value == currentFrame) {
+        option.remove();
+        break; // Exit the loop after removing the option
+      }
+    }
+
+    console.log("Removed frame: " + currentFrame);
+    console.log(frameDrawings);
+
+    // clear the canvas
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    ctx.drawImage(
+      videoElement, 0, 0,
+      canvasElement.width,
+      canvasElement.height
+    );
   }
 });
 
