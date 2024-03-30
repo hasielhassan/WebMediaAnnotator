@@ -85,6 +85,14 @@
         background-color: #222;  /* Slightly darker background on hover */
     }
 
+    #currentFrameDisplay {
+      margin-right: 10px; /* Add some margin for spacing */
+      color: #fff;              /* White text color */
+      padding: 10px 20px;       /* Add some padding for spacing */
+      font-size: 16px;           /* Set font size */
+      font-weight: bold;
+    }
+
   </style>
 </head>
 <body>
@@ -104,6 +112,7 @@
         </datalist>
     </div>
     <div id="controlsContainer">
+        <label id="currentFrameDisplay"></label>
         <button id="prevFrame">Previous Frame</button>
         <button id="playPause">Play</button>
         <button id="nextFrame">Next Frame</button>
@@ -216,6 +225,16 @@ function updateFrame() {
       canvasElement.height
     );
   }
+
+  // Update current frame display
+  const lastFrame = Math.floor(
+    videoElement.duration * FRAMES_PER_SECOND
+  );
+  const currentFrameDisplay = document.getElementById('currentFrameDisplay');
+  const padCurrent = currentFrame.toString().padStart(4, '0'); // Pad with 4 zeros
+  const padLast = lastFrame.toString().padStart(4, '0'); // Pad with 4 zeros
+  currentFrameDisplay.textContent = `${padCurrent}/${padLast}`;
+
 }
 
 function timelineHasMarker(frame) {
