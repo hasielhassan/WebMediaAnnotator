@@ -107,7 +107,7 @@
         <canvas id="canvasElement"></canvas>
     </div>
     <div id="timelineContainer">
-        <input type="range" id="timelineSlider" min="0" max="0" step="1" list="timelineMarkers"/>
+        <input type="range" id="timelineSlider" min="1" max="0" step="1" list="timelineMarkers"/>
         <datalist id="timelineMarkers">
         </datalist>
     </div>
@@ -137,7 +137,7 @@ const saveFramesBtn = document.getElementById('saveFrames');
 const timelineMarkers = document.getElementById("timelineMarkers");
 
 let frameDrawings = {};
-let currentFrame = 0;
+let currentFrame = 1;
 const FRAMES_PER_SECOND = 30; // Adjust based on your video's frame rate
 
 // Function to load video and set canvas dimensions
@@ -147,7 +147,7 @@ function loadVideo(videoSrc) {
     canvasElement.width = videoElement.offsetWidth;
     canvasElement.height = videoElement.offsetHeight;
     console.log(canvasElement.width, canvasElement.height);
-    let lastFrame = Math.floor(
+    let lastFrame = Math.ceil(
       videoElement.duration * FRAMES_PER_SECOND
     );
     console.log(lastFrame);
@@ -156,7 +156,7 @@ function loadVideo(videoSrc) {
 }
 
 function updatePlaybackFrame() {
-    currentFrame = Math.floor(
+    currentFrame = Math.ceil(
       videoElement.currentTime * FRAMES_PER_SECOND
     );
     console.log(currentFrame);
@@ -182,7 +182,7 @@ playPauseBtn.addEventListener('click', () => {
 });
 
 prevFrameBtn.addEventListener('click', () => {
-  if (currentFrame > 0) {
+  if (currentFrame > 1) {
     currentFrame--;
     updateTime();
     updateFrame(); // Improved function to handle frame updates
@@ -191,28 +191,26 @@ prevFrameBtn.addEventListener('click', () => {
 
 nextFrameBtn.addEventListener('click', () => {
   // Check if current frame is less than video duration
-  let lastFrame = Math.floor(
+  let lastFrame = Math.ceil(
     videoElement.duration * FRAMES_PER_SECOND
   );
-  console.log(lastFrame);
+  console.log("currentFrame: " + currentFrame);
+  console.log("lastFrame: " + lastFrame);
   if (currentFrame < lastFrame) {
     currentFrame++;
+    console.log("next currentFrame: "+ currentFrame);
     updateTime();
-    updateFrame();
+    //updateFrame();
   }
 });
 
 function updateTime() {
     const frameTime = currentFrame / FRAMES_PER_SECOND;
-    console.log(frameTime);
+    console.log("frameTime: " + frameTime);
     videoElement.currentTime = frameTime;
 }
 
 function updateFrame() {
-  const currentFrame = Math.floor(
-    videoElement.currentTime * FRAMES_PER_SECOND
-  ); // Ensure working with integer frame number
-
   // Check if drawing exists for current frame
   const frameDrawing = frameDrawings[currentFrame];
   if (frameDrawing) {
@@ -227,7 +225,7 @@ function updateFrame() {
   }
 
   // Update current frame display
-  const lastFrame = Math.floor(
+  const lastFrame = Math.ceil(
     videoElement.duration * FRAMES_PER_SECOND
   );
   const currentFrameDisplay = document.getElementById('currentFrameDisplay');
@@ -261,7 +259,7 @@ canvasElement.addEventListener('mouseup', () => {
   isDrawing = false;
 
   //Store the image in the frameDrawings object
-  const currentFrame = Math.floor(videoElement.currentTime * FRAMES_PER_SECOND);
+  const currentFrame = Math.ceil(videoElement.currentTime * FRAMES_PER_SECOND);
   const newImage = new Image();
   newImage.src = canvasElement.toDataURL('image/png'); // Capture current canvas state
 
@@ -321,7 +319,6 @@ saveFramesBtn.addEventListener('click', () => {
 window.onload = function() {
     console.log("Entire page is loaded!");
     loadVideo('http://localhost:8000/mov_bbb.mp4');
-    currentFrame++;
     updateTime();
     updateFrame();
 
