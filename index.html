@@ -101,13 +101,14 @@
         <canvas id="canvasElement"></canvas>
     </div>
     <div id="timelineContainer">
-        <input type="range" id="timelineSlider" min="0" max="0" />
+        <input type="range" id="timelineSlider" min="0" max="0" step="1" />
     </div>
     <div id="controlsContainer">
         <button id="prevFrame">Previous Frame</button>
         <button id="playPause">Play</button>
         <button id="nextFrame">Next Frame</button>
-        <button id="saveFrame">Save Frame</button>
+        <button id="saveFrame">Save Current Frame</button>
+        <button id="saveFrames">Save All Frames</button>
     </div>
 </body>
 <script>
@@ -122,7 +123,10 @@ const timelineContainer = document.getElementById('timelineContainer');
 const timelineSlider = document.getElementById('timelineSlider');
 const strokeColorPicker = document.getElementById('strokeColorPicker');
 const strokeSizeInput = document.getElementById('strokeSizeInput');
+const saveFrameBtn = document.getElementById('saveFrame');
+const saveFramesBtn = document.getElementById('saveFrames');
 
+let frameDrawings = {};
 let currentFrame = 0;
 const FRAMES_PER_SECOND = 30; // Adjust based on your video's frame rate
 
@@ -146,7 +150,7 @@ function updatePlaybackFrame() {
     updateFrame();
 }
 
-timelineSlider.addEventListener('change', () => {
+timelineSlider.addEventListener('input', () => {
   const newFrame = timelineSlider.value;
   const newTime = newFrame / FRAMES_PER_SECOND;
   videoElement.currentTime = newTime;
@@ -189,11 +193,22 @@ function updateTime() {
 }
 
 function updateFrame() {
+  const currentFrame = Math.floor(
+    videoElement.currentTime * FRAMES_PER_SECOND
+  ); // Ensure working with integer frame number
+
+  // Check if drawing exists for current frame
+  const frameDrawing = frameDrawings[currentFrame];
+  if (frameDrawing) {
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    ctx.drawImage(frameDrawing, 0, 0);
+  } else {
     ctx.drawImage(
-        videoElement, 0, 0, 
-        canvasElement.width, 
-        canvasElement.height
+      videoElement, 0, 0,
+      canvasElement.width,
+      canvasElement.height
     );
+  }
 }
 
 let isDrawing = false;
@@ -207,6 +222,14 @@ canvasElement.addEventListener('mousedown', (e) => {
 
 canvasElement.addEventListener('mouseup', () => {
   isDrawing = false;
+
+  //Store the image in the frameDrawings object
+  const currentFrame = Math.floor(videoElement.currentTime * FRAMES_PER_SECOND);
+  const newImage = new Image();
+  newImage.src = canvasElement.toDataURL('image/png'); // Capture current canvas state
+
+  frameDrawings[currentFrame] = newImage;
+
 });
 
 canvasElement.addEventListener('mousemove', (e) => {
@@ -222,16 +245,32 @@ canvasElement.addEventListener('mousemove', (e) => {
   }
 });
 
-const saveFrameBtn = document.getElementById('saveFrame');
+function downloadFrame(frameNum, url) {
+  console.log(frameNum);
+  console.log(url);
+  const frameInt = parseInt(frameNum);
+  const filename = `frame-${frameInt}.png`;
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link); // Add link to the document body
+  document.documentElement.appendChild(link); // Add link to the document body 
+  link.click();
+  link.remove();
+}
 
 saveFrameBtn.addEventListener('click', () => {
   const imageURL = canvasElement.toDataURL('image/png');
-  const currentFrameInt = parseInt(currentFrame);
-  const filename = `frame-${currentFrameInt}.png`;
-  const link = document.createElement('a');
-  link.href = imageURL;
-  link.download = filename;
-  link.click();
+  downloadFrame(currentFrame, imageURL);
+});
+
+saveFramesBtn.addEventListener('click', () => {
+  // loop through frameDrawings keys getting frame number and image
+  console.log("Saving all frames...");
+  for (var frame in frameDrawings) {
+    var image = frameDrawings[frame];
+    downloadFrame(frame, image.src);
+  }
 });
 
 // When document is ready
