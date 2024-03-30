@@ -47,14 +47,12 @@
     #timelineContainer {
         display: flex;
         justify-content: center;
-        margin: 0 auto; /* Center horizontally */
+        margin-bottom: 5px; /* Center horizontally */
     }
 
     #timelineSlider {
         width: 60%; /* Adjust width as desired */
         height: 10px; /* Adjust height as desired */
-        background: #d3d3d3; /* Background color for the track */
-        border-radius: 5px; /* Add rounded corners */
         cursor: pointer; /* Indicate clickable cursor */
     }
 
@@ -101,7 +99,9 @@
         <canvas id="canvasElement"></canvas>
     </div>
     <div id="timelineContainer">
-        <input type="range" id="timelineSlider" min="0" max="0" step="1" />
+        <input type="range" id="timelineSlider" min="0" max="0" step="1" list="timelineMarkers"/>
+        <datalist id="timelineMarkers">
+        </datalist>
     </div>
     <div id="controlsContainer">
         <button id="prevFrame">Previous Frame</button>
@@ -125,6 +125,7 @@ const strokeColorPicker = document.getElementById('strokeColorPicker');
 const strokeSizeInput = document.getElementById('strokeSizeInput');
 const saveFrameBtn = document.getElementById('saveFrame');
 const saveFramesBtn = document.getElementById('saveFrames');
+const timelineMarkers = document.getElementById("timelineMarkers");
 
 let frameDrawings = {};
 let currentFrame = 0;
@@ -211,6 +212,17 @@ function updateFrame() {
   }
 }
 
+function timelineHasMarker(frame) {
+  // Loop through each option
+  for (const option of timelineMarkers.options) {
+    if (option.value == frame) {
+      return true; // Option found, return true
+    }
+  }
+  // Loop finished without finding the option, return false
+  return false;
+}
+
 let isDrawing = false;
 let lastX, lastY;
 
@@ -229,6 +241,13 @@ canvasElement.addEventListener('mouseup', () => {
   newImage.src = canvasElement.toDataURL('image/png'); // Capture current canvas state
 
   frameDrawings[currentFrame] = newImage;
+
+  if (!timelineHasMarker(currentFrame)) {
+    // add timeline marker for the drawing
+    const frameMarker = document.createElement("option");
+    frameMarker.value = "" + currentFrame;
+    timelineMarkers.appendChild(frameMarker);
+  }
 
 });
 
