@@ -2,7 +2,7 @@
 <h1 align="center">Web Media Annotator</h1>
 
 <p align="center">
-    <img src="screenshot.png" width="512"/>
+    <img src="screenshot.png" width="600"/>
 </p>
 
 <p align="center">
@@ -15,3 +15,10 @@
 
 A minimalistic html/javascript widget to load media (images and videos) and do freehand drawing annotations
 
+## Features:
+
+- Frame by frame scrubing
+- Timeline markers for annotations
+- Download all annotated frames as individual images
+- Frame counter
+- ...
