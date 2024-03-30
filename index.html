@@ -149,9 +149,7 @@ const FRAMES_PER_SECOND = 30; // Adjust based on your video's frame rate
 function loadVideo(videoSrc) {
   videoElement.src = videoSrc;
   videoElement.onloadedmetadata = () => {
-    canvasElement.width = videoElement.offsetWidth;
-    canvasElement.height = videoElement.offsetHeight;
-    console.log(canvasElement.width, canvasElement.height);
+    resizeCanvas();
     let lastFrame = Math.ceil(
       videoElement.duration * FRAMES_PER_SECOND
     );
@@ -168,6 +166,14 @@ function updatePlaybackFrame() {
     timelineSlider.value = currentFrame; // Set slider value to current frame
     updateFrame();
 }
+
+// make sure canvas is sized properly on resize
+function resizeCanvas() {
+  canvasElement.width = videoElement.offsetWidth;
+  canvasElement.height = videoElement.offsetHeight;
+   console.log(canvasElement.width, canvasElement.height);
+}
+window.onresize = resizeCanvas;
 
 timelineSlider.addEventListener('input', () => {
   const newFrame = timelineSlider.value;
@@ -220,7 +226,11 @@ function updateFrame() {
   const frameDrawing = frameDrawings[currentFrame];
   if (frameDrawing) {
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    ctx.drawImage(frameDrawing, 0, 0);
+    ctx.drawImage(
+      frameDrawing, 0, 0,
+      canvasElement.width, 
+      canvasElement.height
+    );
   } else {
     ctx.drawImage(
       videoElement, 0, 0,
