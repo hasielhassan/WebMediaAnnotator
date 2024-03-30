@@ -138,14 +138,18 @@ function loadVideo(videoSrc) {
     canvasElement.width = videoElement.offsetWidth;
     canvasElement.height = videoElement.offsetHeight;
     console.log(canvasElement.width, canvasElement.height);
-    let lastFrame = videoElement.duration * FRAMES_PER_SECOND;
+    let lastFrame = Math.floor(
+      videoElement.duration * FRAMES_PER_SECOND
+    );
     console.log(lastFrame);
     timelineSlider.max = lastFrame;
   };
 }
 
 function updatePlaybackFrame() {
-    currentFrame = videoElement.currentTime * FRAMES_PER_SECOND;
+    currentFrame = Math.floor(
+      videoElement.currentTime * FRAMES_PER_SECOND
+    );
     console.log(currentFrame);
     timelineSlider.value = currentFrame; // Set slider value to current frame
     updateFrame();
@@ -178,7 +182,9 @@ prevFrameBtn.addEventListener('click', () => {
 
 nextFrameBtn.addEventListener('click', () => {
   // Check if current frame is less than video duration
-  let lastFrame = videoElement.duration * FRAMES_PER_SECOND;
+  let lastFrame = Math.floor(
+    videoElement.duration * FRAMES_PER_SECOND
+  );
   console.log(lastFrame);
   if (currentFrame < lastFrame) {
     currentFrame++;
