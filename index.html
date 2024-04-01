@@ -269,6 +269,7 @@ canvasElement.addEventListener('mousedown', (e) => {
   lastX = e.offsetX;
   lastY = e.offsetY;
   ctx.moveTo(lastX, lastY);
+  ctx.beginPath();
 });
 
 canvasElement.addEventListener('mouseup', () => {
