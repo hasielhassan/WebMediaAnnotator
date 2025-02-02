@@ -23,7 +23,7 @@
       margin: 20px auto;
     }
 
-    /* Toolbar styles */
+    /* Toolbar and controls */
     .toolbar, .controls {
       display: flex;
       justify-content: center;
@@ -50,7 +50,7 @@
       height: auto;
     }
 
-    /* Canvas overlays video; pointer events none for video */
+    /* Canvas overlays video; shows a crosshair cursor */
     canvas {
       position: absolute;
       top: 0;
@@ -61,14 +61,32 @@
 
     /* Timeline styling */
     .timeline {
-      display: flex;
-      justify-content: center;
+      position: relative;
+      width: 100%;
+      max-width: 900px;
       margin: 10px 0;
     }
     .timeline input[type="range"] {
       width: 100%;
-      max-width: 900px;
       cursor: pointer;
+    }
+    /* Hide the default datalist tick marks as they’re not visible in many browsers */
+    datalist { display: none; }
+
+    /* Custom markers overlay below the slider */
+    .custom-markers {
+      position: absolute;
+      top: 25px; /* Adjust as needed for vertical placement */
+      left: 0;
+      width: 100%;
+      height: 10px;
+      pointer-events: none; /* Allow slider interactions through markers */
+    }
+    .custom-marker {
+      position: absolute;
+      width: 2px;
+      height: 10px;
+      background: red;
     }
 
     /* Button styling */
@@ -111,9 +129,12 @@
       <canvas id="canvasElement"></canvas>
     </div>
 
-    <!-- Timeline slider -->
+    <!-- Timeline slider with datalist (hidden) and custom markers container -->
     <div class="timeline">
-      <input type="range" id="timelineSlider" min="1" max="0" step="1">
+      <!-- Note: min set to 0 to match the video's starting frame -->
+      <input type="range" id="timelineSlider" min="0" max="0" step="1" list="timelineMarkers">
+      <datalist id="timelineMarkers"></datalist>
+      <div id="customMarkers" class="custom-markers"></div>
     </div>
 
     <!-- Playback and control buttons -->
@@ -132,8 +153,8 @@
     class VideoAnnotator {
       constructor(options) {
         // Element references
-        this.videoURL = options.videoURL;
         this.videoEl = options.videoEl;
+        this.FPS = options.videoFPS;
         this.canvasEl = options.canvasEl;
         this.ctx = this.canvasEl.getContext('2d');
         this.timelineSlider = options.timelineSlider;
@@ -146,11 +167,16 @@
         this.saveAllFramesBtn = options.saveAllFramesBtn;
         this.strokeColorPicker = options.strokeColorPicker;
         this.strokeSizeInput = options.strokeSizeInput;
+        // References for markers
+        this.timelineMarkers = document.getElementById('timelineMarkers');
+        this.customMarkers = document.getElementById('customMarkers');
+
+        // Video URL (dynamically passed in)
+        this.videoURL = options.videoURL;
 
         // State management
         this.frameDrawings = {}; // Stores drawings per frame
-        this.currentFrame = 1;
-        this.FPS = 30; // Frames per second of the video
+        this.currentFrame = 0;   // Start at frame 0
 
         // For drawing
         this.isDrawing = false;
@@ -158,7 +184,6 @@
         this.lastY = 0;
 
         // Bind methods
-        this.init = this.init.bind(this);
         this.loadVideo = this.loadVideo.bind(this);
         this.onVideoLoaded = this.onVideoLoaded.bind(this);
         this.resizeCanvas = this.resizeCanvas.bind(this);
@@ -175,21 +200,21 @@
         this.handleDrawingStart = this.handleDrawingStart.bind(this);
         this.handleDrawingMove = this.handleDrawingMove.bind(this);
         this.handleDrawingEnd = this.handleDrawingEnd.bind(this);
+        this.timelineHasMarker = this.timelineHasMarker.bind(this);
 
+        // Initialize immediately (script is at end of body)
         this.init();
       }
 
       init() {
-        // Set up event listeners
-        document.addEventListener('DOMContentLoaded', () => {
-          this.loadVideo(this.videoURL);
-          this.resizeCanvas();
-        });
+        // Load video and setup canvas immediately
+        this.loadVideo(this.videoURL);
+        this.resizeCanvas();
 
         // Update canvas on window resize
         window.addEventListener('resize', this.resizeCanvas);
 
-        // Timeline input
+        // Timeline input event
         this.timelineSlider.addEventListener('input', this.handleTimelineInput);
 
         // Playback controls
@@ -248,7 +273,9 @@
       }
 
       updatePlaybackFrame() {
+        // Update current frame based on video's currentTime
         this.currentFrame = Math.ceil(this.videoEl.currentTime * this.FPS);
+        // Update slider only if not actively dragging (handled by input event)
         this.timelineSlider.value = this.currentFrame;
         this.renderFrame();
         this.updateFrameDisplay();
@@ -279,7 +306,7 @@
       }
 
       handlePrevFrame() {
-        if (this.currentFrame > 1) {
+        if (this.currentFrame > 0) {
           this.currentFrame--;
           this.updateTimeFromFrame();
           this.renderFrame();
@@ -302,10 +329,10 @@
       }
 
       renderFrame() {
-        // Clear canvas and draw video frame
+        // Clear canvas and draw current video frame
         this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
         this.ctx.drawImage(this.videoEl, 0, 0, this.canvasEl.width, this.canvasEl.height);
-        // If there is an annotation for this frame, overlay it
+        // If an annotation exists for this frame, overlay it
         if (this.frameDrawings[this.currentFrame]) {
           this.ctx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, this.canvasEl.width, this.canvasEl.height);
         }
@@ -338,14 +365,32 @@
         const image = new Image();
         image.src = this.canvasEl.toDataURL('image/png');
         this.frameDrawings[this.currentFrame] = image;
-        // Optionally, provide user feedback that the drawing was saved
         console.log(`Annotation saved for frame ${this.currentFrame}`);
+
+        // Add a timeline marker if one doesn't exist for this frame
+        if (!this.timelineHasMarker(this.currentFrame)) {
+          const option = document.createElement("option");
+          option.value = this.currentFrame;
+          this.timelineMarkers.appendChild(option);
+          
+          // Also create a custom visible marker
+          const marker = document.createElement("div");
+          marker.classList.add("custom-marker");
+          const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+          const percent = (this.currentFrame / totalFrames) * 100;
+          marker.style.left = percent + '%';
+          this.customMarkers.appendChild(marker);
+        }
+      }
+
+      // Checks if a marker for the given frame already exists
+      timelineHasMarker(frame) {
+        return this.timelineMarkers.querySelector(`option[value="${frame}"]`) !== null;
       }
 
       // Utility to convert touch events to mimic mouse events
       getTouchEvent(e) {
         const touch = e.touches[0];
-        // Calculate offset relative to the canvas element
         const rect = this.canvasEl.getBoundingClientRect();
         return {
           offsetX: touch.clientX - rect.left,
@@ -356,7 +401,21 @@
       handleClear() {
         if (this.frameDrawings[this.currentFrame]) {
           delete this.frameDrawings[this.currentFrame];
-          // Re-render the video frame without annotation
+          // Remove the timeline marker (both datalist and custom marker)
+          const markerOption = this.timelineMarkers.querySelector(`option[value="${this.currentFrame}"]`);
+          if (markerOption) {
+            markerOption.remove();
+          }
+          // Remove the corresponding custom marker
+          const markers = Array.from(this.customMarkers.children);
+          markers.forEach(marker => {
+            // Compare the left position (roughly) to the current frame's percent
+            const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+            const percent = (this.currentFrame / totalFrames) * 100;
+            if (marker.style.left === percent + '%') {
+              marker.remove();
+            }
+          });
           this.renderFrame();
           console.log(`Annotation cleared for frame ${this.currentFrame}`);
         }
@@ -386,27 +445,27 @@
       }
     }
 
+    // Use the current page URL to build the dynamic video URL
     var locationURL = window.location.href;
     console.log(locationURL);
 
-    // Initialize the annotator with element references
-    new VideoAnnotator(
-      {
-        videoURL: locationURL + "mov_bbb.mp4",
-        videoEl: document.getElementById('videoElement'),
-        canvasEl: document.getElementById('canvasElement'),
-        timelineSlider: document.getElementById('timelineSlider'),
-        frameDisplay: document.getElementById('frameDisplay'),
-        playPauseBtn: document.getElementById('playPause'),
-        prevFrameBtn: document.getElementById('prevFrame'),
-        nextFrameBtn: document.getElementById('nextFrame'),
-        clearBtn: document.getElementById('clearDrawing'),
-        saveFrameBtn: document.getElementById('saveFrame'),
-        saveAllFramesBtn: document.getElementById('saveAllFrames'),
-        strokeColorPicker: document.getElementById('strokeColorPicker'),
-        strokeSizeInput: document.getElementById('strokeSizeInput')
-      }
-    );
+    // Initialize the annotator with element references and the dynamic video URL
+    new VideoAnnotator({
+      videoURL: locationURL + "mov_bbb.mp4",
+      videoFPS: 30,
+      videoEl: document.getElementById('videoElement'),
+      canvasEl: document.getElementById('canvasElement'),
+      timelineSlider: document.getElementById('timelineSlider'),
+      frameDisplay: document.getElementById('frameDisplay'),
+      playPauseBtn: document.getElementById('playPause'),
+      prevFrameBtn: document.getElementById('prevFrame'),
+      nextFrameBtn: document.getElementById('nextFrame'),
+      clearBtn: document.getElementById('clearDrawing'),
+      saveFrameBtn: document.getElementById('saveFrame'),
+      saveAllFramesBtn: document.getElementById('saveAllFrames'),
+      strokeColorPicker: document.getElementById('strokeColorPicker'),
+      strokeSizeInput: document.getElementById('strokeSizeInput')
+    });
   </script>
 </body>
 </html>
