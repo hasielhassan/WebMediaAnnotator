@@ -5,373 +5,401 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Video FreeHand Annotator</title>
   <style>
-
-    #toolbarContainer {
-        /* Style the container div */
-        display: flex;
-        justify-content: center;
-        gap: 10px;  /* Add 10px gap between buttons */
-        position: relative;
-        width: 59%;  /* Adjust width as desired */
-        height: auto;  /* Adjust height as desired */
-        margin: 0 auto;  /* Center the container horizontally */
-        padding: 10px;  /* Add some padding for spacing */
-        border: 1px solid #ccc;  /* Optional: Add a border */
-        background-color: black;
-        color: #ccc;
-        font-size: 16px;           /* Set font size */
+    /* Base styles for the page */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #222;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
-    #videoContainer {
-        /* Style the container div */
-        position: relative;
-        width: 60%;  /* Adjust width as desired */
-        height: 100%;  /* Adjust height as desired */
-        margin: 0 auto;  /* Center the container horizontally */
-        border: 1px solid #ccc;  /* Optional: Add a border */
-        background-color: black;
+    /* Container for the whole annotator */
+    .annotator-container {
+      width: 90%;
+      max-width: 900px;
+      margin: 20px auto;
     }
 
-    #videoElement {
-        width: 100%;
-        height: auto;
-        position: relative;
+    /* Toolbar styles */
+    .toolbar, .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background-color: #333;
+      border: 1px solid #555;
+      border-radius: 5px;
+      margin-bottom: 10px;
     }
 
-    #canvasElement {
-        position: absolute;
-        top: 0;
-        left: 0;
-        z-index: 10;
+    /* Video and canvas container */
+    .video-container {
+      position: relative;
+      width: 100%;
+      background-color: black;
+      border: 1px solid #555;
     }
 
-
-    #timelineContainer {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 5px; /* Center horizontally */
+    video, canvas {
+      display: block;
+      width: 100%;
+      height: auto;
     }
 
-    #timelineSlider {
-        width: 60%; /* Adjust width as desired */
-        height: 10px; /* Adjust height as desired */
-        cursor: pointer; /* Indicate clickable cursor */
+    /* Canvas overlays video; pointer events none for video */
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      cursor: crosshair;
     }
 
-    #controlsContainer {
-        /* Style the container div */
-        display: flex;
-        justify-content: center;
-        gap: 10px;  /* Add 10px gap between buttons */
-        position: relative;
-        width: 59%;  /* Adjust width as desired */
-        height: auto;  /* Adjust height as desired */
-        margin: 0 auto;  /* Center the container horizontally */
-        padding: 10px;  /* Add some padding for spacing */
-        border: 1px solid #ccc;  /* Optional: Add a border */
-        background-color: black;
+    /* Timeline styling */
+    .timeline {
+      display: flex;
+      justify-content: center;
+      margin: 10px 0;
+    }
+    .timeline input[type="range"] {
+      width: 100%;
+      max-width: 900px;
+      cursor: pointer;
     }
 
-    /* Style the control buttons */
+    /* Button styling */
     button {
-        background-color: #333;  /* Dark gray background */
-        color: #fff;              /* White text color */
-        border: none;             /* Remove border */
-        padding: 5px 10px;       /* Add some padding for spacing */
-        font-size: 14px;           /* Set font size */
-        cursor: pointer;          /* Indicate clickable cursor */
-        transition: background-color 0.2s ease-in-out;  /* Add smooth hover effect */
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      font-size: 14px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
-
-    /* Style for button hover */
     button:hover {
-        background-color: #222;  /* Slightly darker background on hover */
+      background-color: #666;
     }
 
-    #currentFrameDisplay {
-      margin-right: 10px; /* Add some margin for spacing */
-      color: #fff;              /* White text color */
-      padding: 10px 20px;       /* Add some padding for spacing */
-      font-size: 16px;           /* Set font size */
-      font-weight: bold;
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .toolbar, .controls {
+        flex-direction: column;
+      }
     }
-
   </style>
 </head>
 <body>
-    <div id="toolbarContainer">
-        <label for="strokeColor">Stroke Color:</label>
-        <input type="color" id="strokeColorPicker" value="#FF0000">
-        <label for="strokeSize">Stroke Size:</label>
-        <input type="number" id="strokeSizeInput" value="3" min="1">
-        <button id="clear">Clear</button>
+  <div class="annotator-container">
+    <!-- Toolbar for drawing options -->
+    <div class="toolbar">
+      <label for="strokeColorPicker">Stroke Color:</label>
+      <input type="color" id="strokeColorPicker" value="#FF0000">
+      <label for="strokeSizeInput">Stroke Size:</label>
+      <input type="number" id="strokeSizeInput" value="3" min="1">
+      <button id="clearDrawing">Clear Drawing</button>
     </div>
-    <div id="videoContainer">
-        <video id="videoElement" class="video-js"></video>
-        <canvas id="canvasElement"></canvas>
+
+    <!-- Video and canvas container -->
+    <div class="video-container">
+      <video id="videoElement" preload="metadata"></video>
+      <canvas id="canvasElement"></canvas>
     </div>
-    <div id="timelineContainer">
-        <input type="range" id="timelineSlider" min="1" max="0" step="1" list="timelineMarkers"/>
-        <datalist id="timelineMarkers">
-        </datalist>
+
+    <!-- Timeline slider -->
+    <div class="timeline">
+      <input type="range" id="timelineSlider" min="1" max="0" step="1">
     </div>
-    <div id="controlsContainer">
-        <label id="currentFrameDisplay"></label>
-        <button id="prevFrame">Previous Frame</button>
-        <button id="playPause">Play</button>
-        <button id="nextFrame">Next Frame</button>
-        <button id="saveFrame">Save Current Frame</button>
-        <button id="saveFrames">Save All Frames</button>
+
+    <!-- Playback and control buttons -->
+    <div class="controls">
+      <span id="frameDisplay"></span>
+      <button id="prevFrame">Previous Frame</button>
+      <button id="playPause">Play</button>
+      <button id="nextFrame">Next Frame</button>
+      <button id="saveFrame">Save Current Frame</button>
+      <button id="saveAllFrames">Save All Frames</button>
     </div>
-</body>
-<script>
+  </div>
 
-const videoElement = document.getElementById('videoElement');
-const canvasElement = document.getElementById('canvasElement');
-const ctx = canvasElement.getContext('2d');
-const prevFrameBtn = document.getElementById('prevFrame');
-const nextFrameBtn = document.getElementById('nextFrame');
-const playPauseBtn = document.getElementById('playPause');
-const timelineContainer = document.getElementById('timelineContainer');
-const timelineSlider = document.getElementById('timelineSlider');
-const strokeColorPicker = document.getElementById('strokeColorPicker');
-const strokeSizeInput = document.getElementById('strokeSizeInput');
-const clearBtn = document.getElementById('clear');
-const saveFrameBtn = document.getElementById('saveFrame');
-const saveFramesBtn = document.getElementById('saveFrames');
-const timelineMarkers = document.getElementById("timelineMarkers");
+  <script>
+    // VideoAnnotator class encapsulates all functionality
+    class VideoAnnotator {
+      constructor(options) {
+        // Element references
+        this.videoEl = options.videoEl;
+        this.canvasEl = options.canvasEl;
+        this.ctx = this.canvasEl.getContext('2d');
+        this.timelineSlider = options.timelineSlider;
+        this.frameDisplay = options.frameDisplay;
+        this.playPauseBtn = options.playPauseBtn;
+        this.prevFrameBtn = options.prevFrameBtn;
+        this.nextFrameBtn = options.nextFrameBtn;
+        this.clearBtn = options.clearBtn;
+        this.saveFrameBtn = options.saveFrameBtn;
+        this.saveAllFramesBtn = options.saveAllFramesBtn;
+        this.strokeColorPicker = options.strokeColorPicker;
+        this.strokeSizeInput = options.strokeSizeInput;
 
-let frameDrawings = {};
-let currentFrame = 1;
-const FRAMES_PER_SECOND = 30; // Adjust based on your video's frame rate
+        // State management
+        this.frameDrawings = {}; // Stores drawings per frame
+        this.currentFrame = 1;
+        this.FPS = 30; // Frames per second of the video
 
-// Function to load video and set canvas dimensions
-function loadVideo(videoSrc) {
-  videoElement.src = videoSrc;
-  videoElement.onloadedmetadata = () => {
-    resizeCanvas();
-    let lastFrame = Math.ceil(
-      videoElement.duration * FRAMES_PER_SECOND
-    );
-    console.log(lastFrame);
-    timelineSlider.max = lastFrame;
-  };
-}
+        // For drawing
+        this.isDrawing = false;
+        this.lastX = 0;
+        this.lastY = 0;
 
-function updatePlaybackFrame() {
-    currentFrame = Math.ceil(
-      videoElement.currentTime * FRAMES_PER_SECOND
-    );
-    console.log(currentFrame);
-    timelineSlider.value = currentFrame; // Set slider value to current frame
-    updateFrame();
-}
+        // Bind methods
+        this.init = this.init.bind(this);
+        this.loadVideo = this.loadVideo.bind(this);
+        this.onVideoLoaded = this.onVideoLoaded.bind(this);
+        this.resizeCanvas = this.resizeCanvas.bind(this);
+        this.updatePlaybackFrame = this.updatePlaybackFrame.bind(this);
+        this.updateFrameDisplay = this.updateFrameDisplay.bind(this);
+        this.handleTimelineInput = this.handleTimelineInput.bind(this);
+        this.handlePlayPause = this.handlePlayPause.bind(this);
+        this.handlePrevFrame = this.handlePrevFrame.bind(this);
+        this.handleNextFrame = this.handleNextFrame.bind(this);
+        this.updateTimeFromFrame = this.updateTimeFromFrame.bind(this);
+        this.handleClear = this.handleClear.bind(this);
+        this.handleSaveFrame = this.handleSaveFrame.bind(this);
+        this.handleSaveAllFrames = this.handleSaveAllFrames.bind(this);
+        this.handleDrawingStart = this.handleDrawingStart.bind(this);
+        this.handleDrawingMove = this.handleDrawingMove.bind(this);
+        this.handleDrawingEnd = this.handleDrawingEnd.bind(this);
 
-// make sure canvas is sized properly on resize
-function resizeCanvas() {
-  canvasElement.width = videoElement.offsetWidth;
-  canvasElement.height = videoElement.offsetHeight;
-   console.log(canvasElement.width, canvasElement.height);
-}
-window.onresize = resizeCanvas;
+        this.init();
+      }
 
-timelineSlider.addEventListener('input', () => {
-  const newFrame = timelineSlider.value;
-  const newTime = newFrame / FRAMES_PER_SECOND;
-  videoElement.currentTime = newTime;
-  updateFrame(); // Update frame for visual consistency
-});
+      init() {
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+          this.loadVideo('http://127.0.0.1:8080/mov_bbb.mp4');
+          this.resizeCanvas();
+        });
 
-playPauseBtn.addEventListener('click', () => {
-    if (videoElement.paused) {
-        playPauseBtn.innerText = 'Pause';
-        videoElement.play(); 
-    } else {
-        playPauseBtn.innerText = 'Play';
-        videoElement.pause(); 
-    }
-});
+        // Update canvas on window resize
+        window.addEventListener('resize', this.resizeCanvas);
 
-prevFrameBtn.addEventListener('click', () => {
-  if (currentFrame > 1) {
-    currentFrame--;
-    updateTime();
-    updateFrame(); // Improved function to handle frame updates
-  }
-});
+        // Timeline input
+        this.timelineSlider.addEventListener('input', this.handleTimelineInput);
 
-nextFrameBtn.addEventListener('click', () => {
-  // Check if current frame is less than video duration
-  let lastFrame = Math.ceil(
-    videoElement.duration * FRAMES_PER_SECOND
-  );
-  console.log("currentFrame: " + currentFrame);
-  console.log("lastFrame: " + lastFrame);
-  if (currentFrame < lastFrame) {
-    currentFrame++;
-    console.log("next currentFrame: "+ currentFrame);
-    updateTime();
-    //updateFrame();
-  }
-});
+        // Playback controls
+        this.playPauseBtn.addEventListener('click', this.handlePlayPause);
+        this.prevFrameBtn.addEventListener('click', this.handlePrevFrame);
+        this.nextFrameBtn.addEventListener('click', this.handleNextFrame);
 
-function updateTime() {
-    const frameTime = currentFrame / FRAMES_PER_SECOND;
-    console.log("frameTime: " + frameTime);
-    videoElement.currentTime = frameTime;
-}
+        // Clear and save buttons
+        this.clearBtn.addEventListener('click', this.handleClear);
+        this.saveFrameBtn.addEventListener('click', this.handleSaveFrame);
+        this.saveAllFramesBtn.addEventListener('click', this.handleSaveAllFrames);
 
-function updateFrame() {
-  // Check if drawing exists for current frame
-  const frameDrawing = frameDrawings[currentFrame];
-  if (frameDrawing) {
-    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    ctx.drawImage(
-      frameDrawing, 0, 0,
-      canvasElement.width, 
-      canvasElement.height
-    );
-  } else {
-    ctx.drawImage(
-      videoElement, 0, 0,
-      canvasElement.width,
-      canvasElement.height
-    );
-  }
+        // Mouse drawing events
+        this.canvasEl.addEventListener('mousedown', this.handleDrawingStart);
+        this.canvasEl.addEventListener('mousemove', this.handleDrawingMove);
+        this.canvasEl.addEventListener('mouseup', this.handleDrawingEnd);
+        this.canvasEl.addEventListener('mouseout', () => { this.isDrawing = false; });
 
-  // Update current frame display
-  const lastFrame = Math.ceil(
-    videoElement.duration * FRAMES_PER_SECOND
-  );
-  const currentFrameDisplay = document.getElementById('currentFrameDisplay');
-  const padCurrent = currentFrame.toString().padStart(4, '0'); // Pad with 4 zeros
-  const padLast = lastFrame.toString().padStart(4, '0'); // Pad with 4 zeros
-  currentFrameDisplay.textContent = `${padCurrent}/${padLast}`;
+        // Touch events for mobile drawing support
+        this.canvasEl.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          this.handleDrawingStart(this.getTouchEvent(e));
+        });
+        this.canvasEl.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          this.handleDrawingMove(this.getTouchEvent(e));
+        });
+        this.canvasEl.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          this.handleDrawingEnd(e);
+        });
 
-}
+        // Update current frame based on video time update
+        this.videoEl.addEventListener('timeupdate', this.updatePlaybackFrame);
+      }
 
-function timelineHasMarker(frame) {
-  // Loop through each option
-  for (const option of timelineMarkers.options) {
-    if (option.value == frame) {
-      return true; // Option found, return true
-    }
-  }
-  // Loop finished without finding the option, return false
-  return false;
-}
+      loadVideo(src) {
+        this.videoEl.src = src;
+        this.videoEl.onloadedmetadata = this.onVideoLoaded;
+      }
 
-let isDrawing = false;
-let lastX, lastY;
+      onVideoLoaded() {
+        // Resize canvas to video dimensions
+        this.resizeCanvas();
+        // Set timeline slider max value based on video duration
+        const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+        this.timelineSlider.max = totalFrames;
+        this.updateFrameDisplay();
+      }
 
-canvasElement.addEventListener('mousedown', (e) => {
-  isDrawing = true;
-  lastX = e.offsetX;
-  lastY = e.offsetY;
-  ctx.moveTo(lastX, lastY);
-  ctx.beginPath();
-});
+      resizeCanvas() {
+        this.canvasEl.width = this.videoEl.clientWidth;
+        this.canvasEl.height = this.videoEl.clientHeight;
+        // Redraw current frame and drawing (if any) after resizing
+        this.renderFrame();
+      }
 
-canvasElement.addEventListener('mouseup', () => {
-  isDrawing = false;
+      updatePlaybackFrame() {
+        this.currentFrame = Math.ceil(this.videoEl.currentTime * this.FPS);
+        this.timelineSlider.value = this.currentFrame;
+        this.renderFrame();
+        this.updateFrameDisplay();
+      }
 
-  //Store the image in the frameDrawings object
-  const currentFrame = Math.ceil(videoElement.currentTime * FRAMES_PER_SECOND);
-  const newImage = new Image();
-  newImage.src = canvasElement.toDataURL('image/png'); // Capture current canvas state
+      updateFrameDisplay() {
+        const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+        // Pad frames to 4 digits for a consistent display
+        const pad = (num) => num.toString().padStart(4, '0');
+        this.frameDisplay.textContent = `${pad(this.currentFrame)}/${pad(totalFrames)}`;
+      }
 
-  frameDrawings[currentFrame] = newImage;
+      handleTimelineInput(e) {
+        this.currentFrame = parseInt(e.target.value, 10);
+        this.updateTimeFromFrame();
+        this.renderFrame();
+        this.updateFrameDisplay();
+      }
 
-  if (!timelineHasMarker(currentFrame)) {
-    // add timeline marker for the drawing
-    const frameMarker = document.createElement("option");
-    frameMarker.value = "" + currentFrame;
-    timelineMarkers.appendChild(frameMarker);
-  }
+      handlePlayPause() {
+        if (this.videoEl.paused) {
+          this.videoEl.play();
+          this.playPauseBtn.textContent = 'Pause';
+        } else {
+          this.videoEl.pause();
+          this.playPauseBtn.textContent = 'Play';
+        }
+      }
 
-});
+      handlePrevFrame() {
+        if (this.currentFrame > 1) {
+          this.currentFrame--;
+          this.updateTimeFromFrame();
+          this.renderFrame();
+          this.updateFrameDisplay();
+        }
+      }
 
-canvasElement.addEventListener('mousemove', (e) => {
-  if (isDrawing) {
-    ctx.strokeStyle = strokeColorPicker.value;
-    ctx.lineWidth = strokeSizeInput.value;
-    ctx.lineTo(e.offsetX, e.offsetY);
-    ctx.stroke();
-    lastX = e.offsetX;
-    lastY = e.offsetY;
-  }
-});
+      handleNextFrame() {
+        const lastFrame = Math.ceil(this.videoEl.duration * this.FPS);
+        if (this.currentFrame < lastFrame) {
+          this.currentFrame++;
+          this.updateTimeFromFrame();
+          this.renderFrame();
+          this.updateFrameDisplay();
+        }
+      }
 
-clearBtn.addEventListener('click', () => {
-  // Check if drawing exists for current frame
-  const frameDrawing = frameDrawings[currentFrame];
-  if (frameDrawing) {
-    // remove the drawing
-    frameDrawings[currentFrame] = null;
+      updateTimeFromFrame() {
+        this.videoEl.currentTime = this.currentFrame / this.FPS;
+      }
 
-    // remove the timeline marker
-    // loop through each option and search for the current frame
-    for (let i = timelineMarkers.options.length - 1; i >= 0; i--) {
-      const option = timelineMarkers.options[i];
-      console.log(option);
-      if (option.value == currentFrame) {
-        option.remove();
-        break; // Exit the loop after removing the option
+      renderFrame() {
+        // Clear canvas and draw video frame
+        this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
+        this.ctx.drawImage(this.videoEl, 0, 0, this.canvasEl.width, this.canvasEl.height);
+        // If there is an annotation for this frame, overlay it
+        if (this.frameDrawings[this.currentFrame]) {
+          this.ctx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, this.canvasEl.width, this.canvasEl.height);
+        }
+      }
+
+      handleDrawingStart(e) {
+        this.isDrawing = true;
+        const { offsetX, offsetY } = e;
+        this.lastX = offsetX;
+        this.lastY = offsetY;
+      }
+
+      handleDrawingMove(e) {
+        if (!this.isDrawing) return;
+        this.ctx.strokeStyle = this.strokeColorPicker.value;
+        this.ctx.lineWidth = this.strokeSizeInput.value;
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.lastX, this.lastY);
+        this.ctx.lineTo(e.offsetX, e.offsetY);
+        this.ctx.stroke();
+        this.lastX = e.offsetX;
+        this.lastY = e.offsetY;
+      }
+
+      handleDrawingEnd(e) {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+        // Save the current canvas as an image for the current frame
+        const image = new Image();
+        image.src = this.canvasEl.toDataURL('image/png');
+        this.frameDrawings[this.currentFrame] = image;
+        // Optionally, provide user feedback that the drawing was saved
+        console.log(`Annotation saved for frame ${this.currentFrame}`);
+      }
+
+      // Utility to convert touch events to mimic mouse events
+      getTouchEvent(e) {
+        const touch = e.touches[0];
+        // Calculate offset relative to the canvas element
+        const rect = this.canvasEl.getBoundingClientRect();
+        return {
+          offsetX: touch.clientX - rect.left,
+          offsetY: touch.clientY - rect.top
+        };
+      }
+
+      handleClear() {
+        if (this.frameDrawings[this.currentFrame]) {
+          delete this.frameDrawings[this.currentFrame];
+          // Re-render the video frame without annotation
+          this.renderFrame();
+          console.log(`Annotation cleared for frame ${this.currentFrame}`);
+        }
+      }
+
+      downloadFrame(frameNum, url) {
+        const filename = `frame-${frameNum}.png`;
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      handleSaveFrame() {
+        const dataURL = this.canvasEl.toDataURL('image/png');
+        this.downloadFrame(this.currentFrame, dataURL);
+      }
+
+      handleSaveAllFrames() {
+        for (const frame in this.frameDrawings) {
+          if (this.frameDrawings.hasOwnProperty(frame)) {
+            this.downloadFrame(frame, this.frameDrawings[frame].src);
+          }
+        }
       }
     }
 
-    console.log("Removed frame: " + currentFrame);
-    console.log(frameDrawings);
-
-    // clear the canvas
-    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    ctx.drawImage(
-      videoElement, 0, 0,
-      canvasElement.width,
-      canvasElement.height
-    );
-  }
-});
-
-function downloadFrame(frameNum, url) {
-  console.log(frameNum);
-  console.log(url);
-  const frameInt = parseInt(frameNum);
-  const filename = `frame-${frameInt}.png`;
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link); // Add link to the document body
-  document.documentElement.appendChild(link); // Add link to the document body 
-  link.click();
-  link.remove();
-}
-
-saveFrameBtn.addEventListener('click', () => {
-  const imageURL = canvasElement.toDataURL('image/png');
-  downloadFrame(currentFrame, imageURL);
-});
-
-saveFramesBtn.addEventListener('click', () => {
-  // loop through frameDrawings keys getting frame number and image
-  console.log("Saving all frames...");
-  for (var frame in frameDrawings) {
-    var image = frameDrawings[frame];
-    downloadFrame(frame, image.src);
-  }
-});
-
-// When document is ready
-window.onload = function() {
-    console.log("Entire page is loaded!");
-    loadVideo('http://localhost:8000/mov_bbb.mp4');
-    updateTime();
-    updateFrame();
-
-    // Assign an ontimeupdate event to the <video> element, and execute 
-    //a function if the current playback position has changed
-    videoElement.ontimeupdate = function() {updatePlaybackFrame()};
-
-};
-</script>
+    // Initialize the annotator with element references
+    new VideoAnnotator({
+      videoEl: document.getElementById('videoElement'),
+      canvasEl: document.getElementById('canvasElement'),
+      timelineSlider: document.getElementById('timelineSlider'),
+      frameDisplay: document.getElementById('frameDisplay'),
+      playPauseBtn: document.getElementById('playPause'),
+      prevFrameBtn: document.getElementById('prevFrame'),
+      nextFrameBtn: document.getElementById('nextFrame'),
+      clearBtn: document.getElementById('clearDrawing'),
+      saveFrameBtn: document.getElementById('saveFrame'),
+      saveAllFramesBtn: document.getElementById('saveAllFrames'),
+      strokeColorPicker: document.getElementById('strokeColorPicker'),
+      strokeSizeInput: document.getElementById('strokeSizeInput')
+    });
+  </script>
+</body>
 </html>
