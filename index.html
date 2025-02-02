@@ -44,19 +44,19 @@
       border: 1px solid #555;
     }
 
-    video, canvas {
+    /* The video element plays normally; canvas is used for annotations */
+    video {
       display: block;
       width: 100%;
       height: auto;
     }
-
-    /* Canvas overlays video; shows a crosshair cursor */
     canvas {
       position: absolute;
       top: 0;
       left: 0;
       z-index: 10;
       cursor: crosshair;
+      background-color: transparent;
     }
 
     /* Timeline styling */
@@ -70,17 +70,17 @@
       width: 100%;
       cursor: pointer;
     }
-    /* Hide the default datalist tick marks as they’re not visible in many browsers */
+    /* Hide the default datalist tick marks */
     datalist { display: none; }
 
     /* Custom markers overlay below the slider */
     .custom-markers {
       position: absolute;
-      top: 25px; /* Adjust as needed for vertical placement */
+      top: 25px;
       left: 0;
       width: 100%;
       height: 10px;
-      pointer-events: none; /* Allow slider interactions through markers */
+      pointer-events: none;
     }
     .custom-marker {
       position: absolute;
@@ -121,9 +121,11 @@
       <label for="strokeSizeInput">Stroke Size:</label>
       <input type="number" id="strokeSizeInput" value="3" min="1">
       <button id="clearDrawing">Clear Drawing</button>
+      <!-- New eraser tool button -->
+      <button id="eraserTool">Eraser Mode: Off</button>
     </div>
 
-    <!-- Video and canvas container -->
+    <!-- Video and annotation canvas container -->
     <div class="video-container">
       <video id="videoElement" preload="metadata"></video>
       <canvas id="canvasElement"></canvas>
@@ -131,7 +133,6 @@
 
     <!-- Timeline slider with datalist (hidden) and custom markers container -->
     <div class="timeline">
-      <!-- Note: min set to 0 to match the video's starting frame -->
       <input type="range" id="timelineSlider" min="0" max="0" step="1" list="timelineMarkers">
       <datalist id="timelineMarkers"></datalist>
       <div id="customMarkers" class="custom-markers"></div>
@@ -167,7 +168,7 @@
         this.saveAllFramesBtn = options.saveAllFramesBtn;
         this.strokeColorPicker = options.strokeColorPicker;
         this.strokeSizeInput = options.strokeSizeInput;
-        // References for markers
+        // Markers and custom overlay
         this.timelineMarkers = document.getElementById('timelineMarkers');
         this.customMarkers = document.getElementById('customMarkers');
 
@@ -175,8 +176,11 @@
         this.videoURL = options.videoURL;
 
         // State management
-        this.frameDrawings = {}; // Stores drawings per frame
+        this.frameDrawings = {}; // Stores annotation images per frame
         this.currentFrame = 0;   // Start at frame 0
+
+        // Tool state: "draw" or "erase"
+        this.currentTool = 'draw';
 
         // For drawing
         this.isDrawing = false;
@@ -201,13 +205,14 @@
         this.handleDrawingMove = this.handleDrawingMove.bind(this);
         this.handleDrawingEnd = this.handleDrawingEnd.bind(this);
         this.timelineHasMarker = this.timelineHasMarker.bind(this);
+        this.toggleEraser = this.toggleEraser.bind(this);
 
         // Initialize immediately (script is at end of body)
         this.init();
       }
 
       init() {
-        // Load video and setup canvas immediately
+        // Load video and set up canvas immediately
         this.loadVideo(this.videoURL);
         this.resizeCanvas();
 
@@ -226,6 +231,9 @@
         this.clearBtn.addEventListener('click', this.handleClear);
         this.saveFrameBtn.addEventListener('click', this.handleSaveFrame);
         this.saveAllFramesBtn.addEventListener('click', this.handleSaveAllFrames);
+
+        // Eraser tool toggle
+        document.getElementById('eraserTool').addEventListener('click', this.toggleEraser);
 
         // Mouse drawing events
         this.canvasEl.addEventListener('mousedown', this.handleDrawingStart);
@@ -257,7 +265,7 @@
       }
 
       onVideoLoaded() {
-        // Resize canvas to video dimensions
+        // Resize canvas to match video dimensions
         this.resizeCanvas();
         // Set timeline slider max value based on video duration
         const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
@@ -268,22 +276,20 @@
       resizeCanvas() {
         this.canvasEl.width = this.videoEl.clientWidth;
         this.canvasEl.height = this.videoEl.clientHeight;
-        // Redraw current frame and drawing (if any) after resizing
-        this.renderFrame();
+        // Re-render annotations after resize
+        this.renderAnnotations();
       }
 
       updatePlaybackFrame() {
-        // Update current frame based on video's currentTime
+        // Update current frame from video currentTime
         this.currentFrame = Math.ceil(this.videoEl.currentTime * this.FPS);
-        // Update slider only if not actively dragging (handled by input event)
         this.timelineSlider.value = this.currentFrame;
-        this.renderFrame();
         this.updateFrameDisplay();
+        this.renderAnnotations();
       }
 
       updateFrameDisplay() {
         const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
-        // Pad frames to 4 digits for a consistent display
         const pad = (num) => num.toString().padStart(4, '0');
         this.frameDisplay.textContent = `${pad(this.currentFrame)}/${pad(totalFrames)}`;
       }
@@ -291,8 +297,8 @@
       handleTimelineInput(e) {
         this.currentFrame = parseInt(e.target.value, 10);
         this.updateTimeFromFrame();
-        this.renderFrame();
         this.updateFrameDisplay();
+        this.renderAnnotations();
       }
 
       handlePlayPause() {
@@ -309,8 +315,8 @@
         if (this.currentFrame > 0) {
           this.currentFrame--;
           this.updateTimeFromFrame();
-          this.renderFrame();
           this.updateFrameDisplay();
+          this.renderAnnotations();
         }
       }
 
@@ -319,8 +325,8 @@
         if (this.currentFrame < lastFrame) {
           this.currentFrame++;
           this.updateTimeFromFrame();
-          this.renderFrame();
           this.updateFrameDisplay();
+          this.renderAnnotations();
         }
       }
 
@@ -328,11 +334,9 @@
         this.videoEl.currentTime = this.currentFrame / this.FPS;
       }
 
-      renderFrame() {
-        // Clear canvas and draw current video frame
+      // Render only the annotation layer (video is displayed behind)
+      renderAnnotations() {
         this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
-        this.ctx.drawImage(this.videoEl, 0, 0, this.canvasEl.width, this.canvasEl.height);
-        // If an annotation exists for this frame, overlay it
         if (this.frameDrawings[this.currentFrame]) {
           this.ctx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, this.canvasEl.width, this.canvasEl.height);
         }
@@ -347,7 +351,12 @@
 
       handleDrawingMove(e) {
         if (!this.isDrawing) return;
-        this.ctx.strokeStyle = this.strokeColorPicker.value;
+        if (this.currentTool === 'erase') {
+          this.ctx.globalCompositeOperation = 'destination-out';
+        } else {
+          this.ctx.globalCompositeOperation = 'source-over';
+          this.ctx.strokeStyle = this.strokeColorPicker.value;
+        }
         this.ctx.lineWidth = this.strokeSizeInput.value;
         this.ctx.lineCap = 'round';
         this.ctx.beginPath();
@@ -356,39 +365,39 @@
         this.ctx.stroke();
         this.lastX = e.offsetX;
         this.lastY = e.offsetY;
+        this.ctx.globalCompositeOperation = 'source-over';
       }
 
       handleDrawingEnd(e) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
-        // Save the current canvas as an image for the current frame
         const image = new Image();
         image.src = this.canvasEl.toDataURL('image/png');
         this.frameDrawings[this.currentFrame] = image;
         console.log(`Annotation saved for frame ${this.currentFrame}`);
 
-        // Add a timeline marker if one doesn't exist for this frame
+        // Add timeline marker if not present
         if (!this.timelineHasMarker(this.currentFrame)) {
           const option = document.createElement("option");
           option.value = this.currentFrame;
           this.timelineMarkers.appendChild(option);
           
-          // Also create a custom visible marker
           const marker = document.createElement("div");
           marker.classList.add("custom-marker");
           const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
           const percent = (this.currentFrame / totalFrames) * 100;
           marker.style.left = percent + '%';
+          // Store the frame number as a data attribute for easier removal
+          marker.dataset.frame = this.currentFrame;
           this.customMarkers.appendChild(marker);
         }
       }
 
-      // Checks if a marker for the given frame already exists
+      // Checks if a marker for the given frame exists
       timelineHasMarker(frame) {
         return this.timelineMarkers.querySelector(`option[value="${frame}"]`) !== null;
       }
 
-      // Utility to convert touch events to mimic mouse events
       getTouchEvent(e) {
         const touch = e.touches[0];
         const rect = this.canvasEl.getBoundingClientRect();
@@ -401,24 +410,60 @@
       handleClear() {
         if (this.frameDrawings[this.currentFrame]) {
           delete this.frameDrawings[this.currentFrame];
-          // Remove the timeline marker (both datalist and custom marker)
           const markerOption = this.timelineMarkers.querySelector(`option[value="${this.currentFrame}"]`);
           if (markerOption) {
             markerOption.remove();
           }
-          // Remove the corresponding custom marker
-          const markers = Array.from(this.customMarkers.children);
-          markers.forEach(marker => {
-            // Compare the left position (roughly) to the current frame's percent
-            const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
-            const percent = (this.currentFrame / totalFrames) * 100;
-            if (marker.style.left === percent + '%') {
+          // Remove the custom marker using the data attribute
+          Array.from(this.customMarkers.children).forEach(marker => {
+            if (marker.dataset.frame == this.currentFrame) {
               marker.remove();
             }
           });
-          this.renderFrame();
+          this.renderAnnotations();
           console.log(`Annotation cleared for frame ${this.currentFrame}`);
         }
+      }
+
+      toggleEraser() {
+        if (this.currentTool === 'draw') {
+          this.currentTool = 'erase';
+          document.getElementById('eraserTool').textContent = 'Eraser Mode: On';
+        } else {
+          this.currentTool = 'draw';
+          document.getElementById('eraserTool').textContent = 'Eraser Mode: Off';
+        }
+      }
+
+      compositeCurrentFrame() {
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = this.canvasEl.width;
+        compositeCanvas.height = this.canvasEl.height;
+        const compCtx = compositeCanvas.getContext('2d');
+        compCtx.drawImage(this.videoEl, 0, 0, compositeCanvas.width, compositeCanvas.height);
+        if (this.frameDrawings[this.currentFrame]) {
+          compCtx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, compositeCanvas.width, compositeCanvas.height);
+        }
+        return compositeCanvas.toDataURL('image/png');
+      }
+
+      compositeFrame(frameNumber) {
+        return new Promise((resolve) => {
+          const originalTime = this.videoEl.currentTime;
+          this.videoEl.currentTime = frameNumber / this.FPS;
+          this.videoEl.addEventListener('seeked', () => {
+            const compositeCanvas = document.createElement('canvas');
+            compositeCanvas.width = this.canvasEl.width;
+            compositeCanvas.height = this.canvasEl.height;
+            const compCtx = compositeCanvas.getContext('2d');
+            compCtx.drawImage(this.videoEl, 0, 0, compositeCanvas.width, compositeCanvas.height);
+            if (this.frameDrawings[frameNumber]) {
+              compCtx.drawImage(this.frameDrawings[frameNumber], 0, 0, compositeCanvas.width, compositeCanvas.height);
+            }
+            resolve(compositeCanvas.toDataURL('image/png'));
+            this.videoEl.currentTime = originalTime;
+          }, { once: true });
+        });
       }
 
       downloadFrame(frameNum, url) {
@@ -432,24 +477,35 @@
       }
 
       handleSaveFrame() {
-        const dataURL = this.canvasEl.toDataURL('image/png');
+        const saveWhole = confirm("Save whole picture? (OK for whole picture, Cancel for annotation only)");
+        let dataURL;
+        if (saveWhole) {
+          dataURL = this.compositeCurrentFrame();
+        } else {
+          dataURL = this.canvasEl.toDataURL('image/png');
+        }
         this.downloadFrame(this.currentFrame, dataURL);
       }
 
-      handleSaveAllFrames() {
+      async handleSaveAllFrames() {
+        const saveWhole = confirm("Save whole pictures for all frames? (OK for whole picture, Cancel for annotation only)");
         for (const frame in this.frameDrawings) {
           if (this.frameDrawings.hasOwnProperty(frame)) {
-            this.downloadFrame(frame, this.frameDrawings[frame].src);
+            let dataURL;
+            if (saveWhole) {
+              dataURL = await this.compositeFrame(frame);
+            } else {
+              dataURL = this.frameDrawings[frame].src;
+            }
+            this.downloadFrame(frame, dataURL);
           }
         }
       }
     }
 
-    // Use the current page URL to build the dynamic video URL
-    var locationURL = window.location.href;
+    const locationURL = window.location.href;
     console.log(locationURL);
 
-    // Initialize the annotator with element references and the dynamic video URL
     new VideoAnnotator({
       videoURL: locationURL + "mov_bbb.mp4",
       videoFPS: 30,
