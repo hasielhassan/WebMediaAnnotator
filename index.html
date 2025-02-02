@@ -132,6 +132,7 @@
     class VideoAnnotator {
       constructor(options) {
         // Element references
+        this.videoURL = options.videoURL;
         this.videoEl = options.videoEl;
         this.canvasEl = options.canvasEl;
         this.ctx = this.canvasEl.getContext('2d');
@@ -181,7 +182,7 @@
       init() {
         // Set up event listeners
         document.addEventListener('DOMContentLoaded', () => {
-          this.loadVideo('http://127.0.0.1:8080/mov_bbb.mp4');
+          this.loadVideo(this.videoURL);
           this.resizeCanvas();
         });
 
@@ -385,21 +386,27 @@
       }
     }
 
+    var locationURL = window.location.href;
+    console.log(locationURL);
+
     // Initialize the annotator with element references
-    new VideoAnnotator({
-      videoEl: document.getElementById('videoElement'),
-      canvasEl: document.getElementById('canvasElement'),
-      timelineSlider: document.getElementById('timelineSlider'),
-      frameDisplay: document.getElementById('frameDisplay'),
-      playPauseBtn: document.getElementById('playPause'),
-      prevFrameBtn: document.getElementById('prevFrame'),
-      nextFrameBtn: document.getElementById('nextFrame'),
-      clearBtn: document.getElementById('clearDrawing'),
-      saveFrameBtn: document.getElementById('saveFrame'),
-      saveAllFramesBtn: document.getElementById('saveAllFrames'),
-      strokeColorPicker: document.getElementById('strokeColorPicker'),
-      strokeSizeInput: document.getElementById('strokeSizeInput')
-    });
+    new VideoAnnotator(
+      {
+        videoURL: locationURL + "mov_bbb.mp4",
+        videoEl: document.getElementById('videoElement'),
+        canvasEl: document.getElementById('canvasElement'),
+        timelineSlider: document.getElementById('timelineSlider'),
+        frameDisplay: document.getElementById('frameDisplay'),
+        playPauseBtn: document.getElementById('playPause'),
+        prevFrameBtn: document.getElementById('prevFrame'),
+        nextFrameBtn: document.getElementById('nextFrame'),
+        clearBtn: document.getElementById('clearDrawing'),
+        saveFrameBtn: document.getElementById('saveFrame'),
+        saveAllFramesBtn: document.getElementById('saveAllFrames'),
+        strokeColorPicker: document.getElementById('strokeColorPicker'),
+        strokeSizeInput: document.getElementById('strokeSizeInput')
+      }
+    );
   </script>
 </body>
 </html>
