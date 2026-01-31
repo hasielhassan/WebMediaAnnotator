@@ -1,0 +1,19 @@
+{
+    "name": "@web-media-annotator/react",
+    "version": "0.1.0",
+    "main": "dist/index.js",
+    "module": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "lint": "eslint src --ext .ts,.tsx"
+    },
+    "peerDependencies": {
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
+    },
+    "dependencies": {
+        "@web-media-annotator/core": "*",
+        "@web-media-annotator/ui": "*"
+    }
+}
