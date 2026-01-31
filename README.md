@@ -1,8 +1,7 @@
 <h1 align="center">Web Media Annotator</h1>
 
 <p align="center">
-    <!-- Placeholder for screenshot -->
-    <!-- <img src="screenshot.png" width="600"/> -->
+    <img src="screenshot.png" width="600"/>
 </p>
 
 A powerful, web-based tool for annotating video and image media with frame-accurate precision. Built with a modular architecture that separates core annotation logic from the UI, enabling easy integration into any web application.
