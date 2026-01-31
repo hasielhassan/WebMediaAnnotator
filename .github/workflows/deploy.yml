@@ -48,18 +48,32 @@ jobs:
       - name: Prepare Deployment Artifact
         run: |
           mkdir public
-          # Copy the main demo app build
-          cp -r apps/demo/dist/* public/
           
-          # Create directory structure for the embed package so quick-review.html links work
+          # 1. LANDING PAGE (Root)
+          cp apps/demo/landing.html public/index.html
+          cp screenshot.png public/
+          
+          # 2. REACT DEMO (Subdirectory)
+          mkdir public/demo
+          cp -r apps/demo/dist/* public/demo/
+          
+          # 3. STATIC DEMO (Root app.html)
+          cp apps/demo/static-test.html public/app.html
+          
+          # 4. DEPENDENCIES & LEGACY
+          # Create directory structure for the embed package
           mkdir -p public/packages/embed/dist
           cp packages/embed/dist/* public/packages/embed/dist/
           
-          # Copy the custom quick-review.html to root for easy access if desired
+          # Keep quick-review.html for legacy access
           cp apps/demo/quick-review.html public/quick-review.html
           
-          # Patch the script path in quick-review.html to work in the public root
-          # Changes "../../packages/embed/dist/" to "./packages/embed/dist/"
+          # PATCHING PATHS
+          
+          # Patch app.html: points to ./packages/... (was ../../packages in source)
+          sed -i 's|\.\./\.\./packages/embed/dist/|\./packages/embed/dist/|g' public/app.html
+          
+          # Patch quick-review.html: points to ./packages/... (was ../../packages in source)
           sed -i 's|\.\./\.\./packages/embed/dist/|\./packages/embed/dist/|g' public/quick-review.html
 
       - name: Setup Pages

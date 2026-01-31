@@ -208,4 +208,5 @@ Contributions are welcome! Please focus on the `packages/core` for functional im
 
 ## 📄 License
 
-MIT
+GPL-3.0 license
+
