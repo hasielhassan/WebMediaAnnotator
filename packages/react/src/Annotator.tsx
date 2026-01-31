@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { WebMediaAnnotator, AppState } from '@web-media-annotator/core';
-import { Toolbar } from '@web-media-annotator/ui';
-import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX } from 'lucide-react';
+import { Toolbar, Popover } from '@web-media-annotator/ui';
+import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info } from 'lucide-react';
 import { Player } from '@web-media-annotator/core';
 
 export interface AnnotatorProps {
@@ -158,6 +158,43 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height }}>
             {/* Top Toolbar Area */}
             <div className="flex flex-row items-center bg-gray-900 border-b border-gray-800">
+                <div className="pl-2">
+                    <Popover
+                        side="bottom"
+                        align="start"
+                        trigger={
+                            <button title="Shortcuts Info" className="p-2 text-gray-400 hover:text-blue-400 transition-colors">
+                                <Info size={20} />
+                            </button>
+                        }
+                        content={
+                            <div className="w-64 p-2 text-xs">
+                                <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
+                                <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
+                                    <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
+                                    <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
+                                    <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
+                                    <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
+
+                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
+                                    <span>Select</span> <span className="font-mono text-gray-500">S</span>
+                                    <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
+                                    <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
+                                    <span>Circle</span> <span className="font-mono text-gray-500">C</span>
+                                    <span>Square</span> <span className="font-mono text-gray-500">Q</span>
+                                    <span>Text</span> <span className="font-mono text-gray-500">T</span>
+                                    <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
+                                    <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
+
+                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
+                                    <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
+                                    <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
+                                    <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
+                                </div>
+                            </div>
+                        }
+                    />
+                </div>
                 <Toolbar
                     orientation="horizontal"
                     className="border-0 bg-transparent flex-1"
@@ -179,17 +216,60 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     <button title="Redo" onClick={handleRedo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Redo2 size={16} /></button>
                 </div>
 
-                <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10">
-                    <button title="Save JSON" onClick={handleSave} className="p-2 bg-gray-800 rounded hover:bg-gray-700 text-xs font-mono">JSON ↓</button>
-                    <label title="Load JSON" className="p-2 bg-gray-800 rounded hover:bg-gray-700 text-xs font-mono cursor-pointer">
-                        JSON ↑
-                        <input type="file" accept=".json" onChange={handleLoad} className="hidden" />
-                    </label>
-                </div>
+                {/* Export / Import Menu */}
+                <div className="flex px-2 items-center border-l border-gray-800 h-10 mr-2">
+                    <Popover
+                        side="bottom"
+                        align="end"
+                        trigger={
+                            <button
+                                title="Import / Export"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs font-medium transition-colors"
+                            >
+                                <Download size={14} />
+                                <span>Export</span>
+                            </button>
+                        }
+                        content={
+                            <div className="w-56 p-1 flex flex-col gap-1">
+                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Annotations Data
+                                </div>
+                                <button
+                                    onClick={handleSave}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left"
+                                >
+                                    <FileJson size={16} className="text-yellow-400" />
+                                    Download JSON
+                                </button>
+                                <label className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left cursor-pointer">
+                                    <Upload size={16} className="text-yellow-400" />
+                                    Import JSON
+                                    <input type="file" accept=".json" onChange={handleLoad} className="hidden" />
+                                </label>
 
-                <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10 mr-2">
-                    <button title="Export PNG" onClick={() => handleExport(false)} className="p-2 bg-gray-800 rounded hover:bg-gray-700 text-xs flex gap-1 items-center"><Download size={14} /> PNG</button>
-                    <button title="Export Composite" onClick={() => handleExport(true)} className="p-2 bg-gray-800 rounded hover:bg-gray-700 text-xs flex gap-1 items-center"><Download size={14} /> Comp</button>
+                                <div className="h-px bg-gray-700 my-1" />
+
+                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Image Export
+                                </div>
+                                <button
+                                    onClick={() => handleExport(false)}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left"
+                                >
+                                    <ImageIcon size={16} className="text-blue-400" />
+                                    Current Frame (Clean)
+                                </button>
+                                <button
+                                    onClick={() => handleExport(true)}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left"
+                                >
+                                    <ImageIcon size={16} className="text-green-400" />
+                                    Current Frame (Burned In)
+                                </button>
+                            </div>
+                        }
+                    />
                 </div>
 
                 <div className="flex gap-2 items-center">

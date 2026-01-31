@@ -27,6 +27,9 @@ export class WebMediaAnnotator {
     private container: HTMLElement;
     private videoElement: HTMLVideoElement;
 
+    // State for temporary tool switching
+    private previousTool: string | null = null;
+
     constructor(container: HTMLElement, options: {
         videoSrc?: string;
         fps?: number;
@@ -40,6 +43,14 @@ export class WebMediaAnnotator {
         this.videoElement.style.width = '100%';
         this.videoElement.style.height = '100%';
         this.videoElement.style.display = 'block';
+
+        // Critical: Disable native controls and PiP to prevent browser interference
+        this.videoElement.controls = false;
+        // @ts-ignore - disablePictureInPicture is standard but strict TS might miss it on HTMLVideoElement
+        this.videoElement.disablePictureInPicture = true;
+        this.videoElement.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+        this.videoElement.setAttribute('playsinline', 'true');
+
         if (options.videoSrc) this.videoElement.src = options.videoSrc;
         this.container.appendChild(this.videoElement);
 
@@ -94,6 +105,7 @@ export class WebMediaAnnotator {
         }));
 
         this.initInteraction();
+        this.initShortcuts();
         this.initResizeObserver();
     }
 
@@ -113,6 +125,18 @@ export class WebMediaAnnotator {
         };
 
         this.canvasElement.addEventListener('mousedown', (e) => {
+            // Middle Mouse (Button 1) -> Temporary Pan
+            if (e.button === 1) {
+                e.preventDefault();
+                this.previousTool = this.store.getState().activeTool;
+                this.store.setState({ activeTool: 'pan' });
+                // We also trigger onMouseDown for the Pan tool immediately so it starts dragging
+                const { x, y } = getXY(e);
+                const panTool = this.tools.get('pan');
+                if (panTool) panTool.onMouseDown(x, y, e);
+                return;
+            }
+
             const { x, y } = getXY(e);
             const toolName = this.store.getState().activeTool;
             const tool = this.tools.get(toolName);
@@ -132,12 +156,99 @@ export class WebMediaAnnotator {
         });
 
         window.addEventListener('mouseup', (e) => {
+            // Middle Mouse Up -> Revert Tool
+            if (e.button === 1 && this.previousTool) {
+                const panTool = this.tools.get('pan');
+                // Finish pan drag
+                const rect = this.canvasElement.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+                if (panTool) panTool.onMouseUp(x, y, e);
+
+                this.store.setState({ activeTool: this.previousTool as any });
+                this.previousTool = null;
+                return;
+            }
+
             const rect = this.canvasElement.getBoundingClientRect();
             const x = (e.clientX - rect.left) / rect.width;
             const y = (e.clientY - rect.top) / rect.height;
             const toolName = this.store.getState().activeTool;
             const tool = this.tools.get(toolName);
             if (tool) tool.onMouseUp(x, y, e);
+        });
+    }
+
+    private initShortcuts() {
+        window.addEventListener('keydown', (e) => {
+            // Ignore keystrokes if focused on an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            // Undo/Redo
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    this.store.undo();
+                    return;
+                }
+                if (e.key === 'y') {
+                    e.preventDefault();
+                    this.store.redo();
+                    return;
+                }
+                // Navigation by Annotated Frames
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    this.player.seekToPrevAnnotation();
+                    return;
+                }
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    this.player.seekToNextAnnotation();
+                    return;
+                }
+            }
+
+            switch (e.key.toLowerCase()) {
+                // Playback
+                case ' ': // Spacebar
+                    e.preventDefault();
+                    if (this.store.getState().isPlaying) {
+                        this.player.pause();
+                    } else {
+                        this.player.play();
+                    }
+                    break;
+
+                // Navigation (Frame by Frame)
+                case 'arrowleft':
+                    e.preventDefault();
+                    this.player.seekToFrame(this.store.getState().currentFrame - 1);
+                    break;
+                case 'arrowright':
+                    e.preventDefault();
+                    this.player.seekToFrame(this.store.getState().currentFrame + 1);
+                    break;
+
+                // Tools
+                case 's': this.store.setState({ activeTool: 'select' }); break;
+                case 'p': this.store.setState({ activeTool: 'freehand' }); break;
+                case 'a': this.store.setState({ activeTool: 'arrow' }); break;
+                case 'c': this.store.setState({ activeTool: 'circle' }); break;
+                case 'q': this.store.setState({ activeTool: 'square' }); break;
+                case 't': this.store.setState({ activeTool: 'text' }); break;
+                case 'e': this.store.setState({ activeTool: 'eraser' }); break;
+
+                // Toggles
+                case 'g':
+                    this.store.setState({ isOnionSkinEnabled: !this.store.getState().isOnionSkinEnabled });
+                    break;
+
+                // View
+                case 'r':
+                    this.store.setState({ viewport: { x: 0, y: 0, scale: 1 } });
+                    break;
+            }
         });
     }
 

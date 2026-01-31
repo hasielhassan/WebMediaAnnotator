@@ -34,9 +34,14 @@ The ultimate goal is to create a professional-grade, browser-based media annotat
 - **Ghosting (Onion Skinning)**:
     - View previous (red) and future (green) frames overlaid on the current frame.
     - Configurable range (1-10 frames) and opacity.
-- **Audio**:
-    - Synchronized audio playback.
-    - Volume control and Mute toggle.
+### ⌨️ Shortcuts & Interaction
+- **Mouse**: Middle-click to Pan (temporary), Scroll to Zoom.
+- **Keyboard**:
+    - Tools: `S`, `P`, `A`, `C`, `Q`, `T`, `E`.
+    - Navigation: `Space` (Play/Pause), Arrows (Frame step), `Ctrl`+Arrows (Jump to annotation).
+    - View: `R` (Reset Zoom/Pan).
+    - History: `Ctrl+Z` (Undo), `Ctrl+Y` (Redo).
+- **UI**: Consolidated "Export" menu for cleaner interface and integrated Shortcuts cheat sheet.
 
 ### 💾 Import & Export
 - **Export to Image**: Download the current frame with all annotations "burned in" as a high-quality PNG.
@@ -49,12 +54,20 @@ The ultimate goal is to create a professional-grade, browser-based media annotat
 - **Planned UI**: "Hold" input field in the toolbar (e.g., "Hold for 5 frames" or "Until Frame X").
 - **Logic**: Update Renderer to check frame ranges instead of single-frame strict equality.
 
+### 🖼️ Single Image Preview (Future)
+- **Goal**: Support static image annotation without the video player overhead.
+- **Utility**: Marking up screenshots, design assets, or photography.
+
+### 🧊 Simple 3D Viewer (Long Term)
+- **Goal**: Support basic 3D model annotation (OBJ/GLB).
+- **Utility**: Annotating 3D assets for game development or product visualization (drawing on 2D screen space projected onto the model).
+
 ### 🎵 Audio Visuals
 - **Goal**: Visualize the audio waveform in the timeline.
 
 ### 📦 Advanced Export
 - **Goal**: Export annotation data as a standardized JSON format.
-- **Utility**: Allowing re-importing of sessions or integration with backend systems (ML training pipelines, review tools).
+- **Utility**: Allowing re-importing of samples or integration with backend systems.
 
 ### 🛠 Plugins & API
 - **Goal**: Finalize the Plugin API.
