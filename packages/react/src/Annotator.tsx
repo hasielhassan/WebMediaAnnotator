@@ -227,7 +227,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     }}
                     onionSkinPrevFrames={state?.onionSkinPrevFrames}
                     onionSkinNextFrames={state?.onionSkinNextFrames}
-                    onOnionSkinSettingsChange={(prev, next) => annotatorRef.current?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next })}
+                    onOnionSkinSettingsChange={(prev: number, next: number) => annotatorRef.current?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next })}
                 />
 
                 <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10">

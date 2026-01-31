@@ -4,6 +4,7 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    base: './',
     plugins: [react()],
     resolve: {
         // Force alias to sources for hot reload

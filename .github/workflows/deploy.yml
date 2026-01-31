@@ -53,6 +53,10 @@ jobs:
           
           # Copy the custom quick-review.html to root for easy access if desired
           cp apps/demo/quick-review.html public/quick-review.html
+          
+          # Patch the script path in quick-review.html to work in the public root
+          # Changes "../../packages/embed/dist/" to "./packages/embed/dist/"
+          sed -i 's|\.\./\.\./packages/embed/dist/|\./packages/embed/dist/|g' public/quick-review.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
