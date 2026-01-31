@@ -63,15 +63,21 @@ export class Renderer {
 
         // Onion Skin
         if (state.isOnionSkinEnabled) {
+            const currentAnnotations = this.store.getAnnotationsForFrame(state.currentFrame);
+            const currentIds = new Set(currentAnnotations.map(a => a.id));
+
             // PAST Frames (Red)
             for (let i = state.onionSkinPrevFrames; i > 0; i--) {
                 const targetFrame = state.currentFrame - i;
                 if (targetFrame >= 0) {
                     const prevAnnotations = this.store.getAnnotationsForFrame(targetFrame);
-                    if (prevAnnotations.length > 0) {
+                    // Filter out annotations that are ALSO active on the current frame (held static)
+                    const ghosts = prevAnnotations.filter(a => !currentIds.has(a.id));
+
+                    if (ghosts.length > 0) {
                         // Opacity fades with distance
                         const opacity = 0.3 * (1 - (i / (state.onionSkinPrevFrames + 1)));
-                        this.renderAnnotationsToContext(this.ctx, prevAnnotations, this.canvas.width, this.canvas.height, {
+                        this.renderAnnotationsToContext(this.ctx, ghosts, this.canvas.width, this.canvas.height, {
                             globalAlpha: opacity,
                             colorOverride: '#ff0000'
                         });
@@ -80,14 +86,16 @@ export class Renderer {
             }
 
             // FUTURE Frames (Green)
-            const nextFrames = state.onionSkinNextFrames || 0; // Ensure property exists
+            const nextFrames = state.onionSkinNextFrames || 0;
             for (let i = nextFrames; i > 0; i--) {
                 const targetFrame = state.currentFrame + i;
-                // Assuming we don't know max frames easily here without store.duration check, but getAnnotations handles empty
                 const nextAnnotations = this.store.getAnnotationsForFrame(targetFrame);
-                if (nextAnnotations.length > 0) {
+                // Filter out annotations that are ALSO active on the current frame
+                const ghosts = nextAnnotations.filter(a => !currentIds.has(a.id));
+
+                if (ghosts.length > 0) {
                     const opacity = 0.3 * (1 - (i / (nextFrames + 1)));
-                    this.renderAnnotationsToContext(this.ctx, nextAnnotations, this.canvas.width, this.canvas.height, {
+                    this.renderAnnotationsToContext(this.ctx, ghosts, this.canvas.width, this.canvas.height, {
                         globalAlpha: opacity,
                         colorOverride: '#00ff00'
                     });

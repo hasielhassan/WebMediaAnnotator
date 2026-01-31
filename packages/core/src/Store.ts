@@ -39,6 +39,7 @@ export interface AppState {
     activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan';
     activeColor: string;
     activeStrokeWidth: number;
+    activeDuration: number; // Default duration in frames
     isOnionSkinEnabled: boolean;
     onionSkinPrevFrames: number;
     onionSkinNextFrames: number;
@@ -64,6 +65,7 @@ export const DEFAULT_STATE: AppState = {
     activeTool: 'select',
     activeColor: '#FF0000',
     activeStrokeWidth: 3,
+    activeDuration: 1, // Default 1 frame (no hold)
     isOnionSkinEnabled: false,
     onionSkinPrevFrames: 3,
     onionSkinNextFrames: 3,

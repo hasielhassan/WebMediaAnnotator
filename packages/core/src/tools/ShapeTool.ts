@@ -52,6 +52,7 @@ export class ShapeTool extends BaseTool {
             const newAnnotation: Annotation = {
                 id: uuidv4(),
                 frame: state.currentFrame,
+                duration: state.activeDuration,
                 type: this.type,
                 points: [this.startPoint, { x, y }],
                 style: {

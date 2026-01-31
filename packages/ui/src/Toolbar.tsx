@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand } from 'lucide-react';
+import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Popover } from './Popover';
 
@@ -15,6 +15,8 @@ export interface ToolbarProps {
     onColorChange?: (color: string) => void;
     activeStrokeWidth?: number;
     onStrokeWidthChange?: (width: number) => void;
+    activeDuration?: number;
+    onDurationChange?: (duration: number) => void;
 
     // Onion Skin
     isOnionSkinEnabled?: boolean;
@@ -27,6 +29,7 @@ export interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({
     activeTool, onToolSelect, onClear, className, orientation = 'vertical',
     activeColor, onColorChange, activeStrokeWidth, onStrokeWidthChange,
+    activeDuration = 1, onDurationChange,
     isOnionSkinEnabled, onToggleOnionSkin,
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange
 }) => {
@@ -82,6 +85,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             isHorizontal ? "flex-row border-b items-center" : "flex-col border-r",
             className
         )}>
+            <style>{`
+                .styled-range::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background: #ffffff;
+                    cursor: pointer;
+                    margin-top: -5px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+                }
+                .styled-range::-moz-range-thumb {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background: #ffffff;
+                    cursor: pointer;
+                    border: none;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+                }
+                .styled-range::-moz-range-track {
+                    height: 4px;
+                    background-color: currentColor;
+                    border-radius: 9999px;
+                }
+            `}</style>
+
             {tools.map(tool => (
                 <button
                     key={tool.id}
@@ -122,34 +153,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 }
                 content={
                     <div className="w-52 p-2 flex flex-col gap-3">
-                        <style>{`
-                            .styled-range::-webkit-slider-thumb {
-                                -webkit-appearance: none;
-                                appearance: none;
-                                width: 14px;
-                                height: 14px;
-                                border-radius: 50%;
-                                background: #ffffff;
-                                cursor: pointer;
-                                margin-top: -5px; /* Centers thumb on h-1 track */
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-                            }
-                            .styled-range::-moz-range-thumb {
-                                width: 14px;
-                                height: 14px;
-                                border-radius: 50%;
-                                background: #ffffff;
-                                cursor: pointer;
-                                border: none;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-                            }
-                            /* Firefox track alignment fix */
-                            .styled-range::-moz-range-track {
-                                height: 4px;
-                                background-color: currentColor;
-                                border-radius: 9999px;
-                            }
-                        `}</style>
                         <div className="flex items-center justify-between pb-2 border-b border-gray-700">
                             <span className="text-sm font-medium text-white">Ghosting</span>
                             <button
@@ -169,7 +172,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             <input
                                 type="range" min="0" max="10" step="1"
                                 value={localPrevFrames}
-                                // Stop propagation to prevent popover closing
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => {
@@ -184,7 +186,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             <input
                                 type="range" min="0" max="10" step="1"
                                 value={localNextFrames}
-                                // Stop propagation to prevent popover closing
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => {
@@ -192,6 +193,64 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                                 }}
                                 className="styled-range w-full h-1 bg-green-900/50 rounded-lg appearance-none cursor-pointer text-green-900"
                             />
+                        </div>
+                    </div>
+                }
+            />
+
+            {/* Duration Popover */}
+            <Popover
+                side={isHorizontal ? "bottom" : "right"}
+                trigger={
+                    <button
+                        title="Annotation Duration (Hold)"
+                        className={clsx(
+                            "p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center w-10 h-10 relative",
+                            activeDuration > 1 ? "bg-orange-900/50 text-orange-400" : "bg-transparent text-gray-400"
+                        )}
+                    >
+                        <Clock size={20} />
+                        {activeDuration > 1 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
+                                {activeDuration}
+                            </span>
+                        )}
+                    </button>
+                }
+                content={
+                    <div className="w-52 p-2 flex flex-col gap-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-700">
+                            <span className="text-sm font-medium text-white">Hold Duration</span>
+                            {/* Toggle Reset */}
+                            <button
+                                type="button"
+                                title="Reset to 1 frame"
+                                onClick={() => onDurationChange?.(1)}
+                                className="text-[10px] text-gray-400 hover:text-white underline"
+                            >
+                                Reset
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-xs text-orange-300 font-medium">{activeDuration} Frames</span>
+                                <span className="text-[10px] text-gray-500">{(activeDuration / 24).toFixed(1)}s @ 24fps</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="1" max="100"
+                                value={activeDuration}
+                                onChange={(e) => onDurationChange?.(parseInt(e.target.value))}
+                                className="styled-range w-full h-1 bg-orange-900/50 rounded-lg appearance-none cursor-pointer text-orange-600"
+                            />
+                            <div className="flex justify-between mt-1 text-[9px] text-gray-600 font-mono">
+                                <span>1</span>
+                                <span>25</span>
+                                <span>50</span>
+                                <span>75</span>
+                                <span>100</span>
+                            </div>
                         </div>
                     </div>
                 }
@@ -266,6 +325,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     </div>
                 }
             />
+
+
 
             {/* Spacer for horizontal layout to push content if needed, or caller handles it */}
             <div className="flex-1" />

@@ -44,6 +44,7 @@ export class FreehandTool extends BaseTool {
             const newAnnotation: Annotation = {
                 id: uuidv4(),
                 frame: state.currentFrame,
+                duration: state.activeDuration, // Use global duration setting
                 type: 'freehand',
                 points: [...this.currentPoints], // Helper to clone
                 style: {

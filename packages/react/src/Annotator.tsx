@@ -185,11 +185,13 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                     <span>Text</span> <span className="font-mono text-gray-500">T</span>
                                     <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
                                     <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
+                                    <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
 
                                     <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
                                     <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
                                     <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
                                     <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
+                                    <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
                                 </div>
                             </div>
                         }
@@ -204,8 +206,25 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     onColorChange={handleColorChange}
                     activeStrokeWidth={state?.activeStrokeWidth}
                     onStrokeWidthChange={handleWidthChange}
+                    activeDuration={state?.activeDuration || 1}
+                    onDurationChange={(d) => {
+                        // If setting duration > 1, turn off onion skin
+                        if (d > 1) {
+                            annotatorRef.current?.store.setState({ activeDuration: d, isOnionSkinEnabled: false });
+                        } else {
+                            annotatorRef.current?.store.setState({ activeDuration: d });
+                        }
+                    }}
                     isOnionSkinEnabled={state?.isOnionSkinEnabled}
-                    onToggleOnionSkin={() => annotatorRef.current?.store.setState({ isOnionSkinEnabled: !state?.isOnionSkinEnabled })}
+                    onToggleOnionSkin={() => {
+                        const nextState = !state?.isOnionSkinEnabled;
+                        // If turning on onion skin, reset duration to 1
+                        if (nextState) {
+                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: true, activeDuration: 1 });
+                        } else {
+                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: false });
+                        }
+                    }}
                     onionSkinPrevFrames={state?.onionSkinPrevFrames}
                     onionSkinNextFrames={state?.onionSkinNextFrames}
                     onOnionSkinSettingsChange={(prev, next) => annotatorRef.current?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next })}

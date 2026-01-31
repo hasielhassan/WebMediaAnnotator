@@ -51,6 +51,7 @@ export class TextTool extends BaseTool {
                 const newAnnotation: Annotation = {
                     id: uuidv4(),
                     frame: state.currentFrame,
+                    duration: state.activeDuration,
                     type: 'text',
                     points: [{ x, y }],
                     text: text,

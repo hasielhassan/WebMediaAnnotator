@@ -241,12 +241,42 @@ export class WebMediaAnnotator {
 
                 // Toggles
                 case 'g':
-                    this.store.setState({ isOnionSkinEnabled: !this.store.getState().isOnionSkinEnabled });
+                    const isCurrentlyEnabled = this.store.getState().isOnionSkinEnabled;
+
+                    if (!isCurrentlyEnabled) {
+                        // Turning ON: Enable ghosting, reset duration to 1
+                        this.store.setState({ isOnionSkinEnabled: true, activeDuration: 1 });
+                    } else {
+                        // Turning OFF
+                        this.store.setState({ isOnionSkinEnabled: false });
+                    }
+                    break;
+
+                case 'h':
+                    const currentDur = this.store.getState().activeDuration;
+                    if (currentDur > 1) {
+                        this.store.setState({ activeDuration: 1 });
+                    } else {
+                        // Default to 3 frames, turn off ghosting
+                        this.store.setState({ activeDuration: 3, isOnionSkinEnabled: false });
+                    }
                     break;
 
                 // View
                 case 'r':
                     this.store.setState({ viewport: { x: 0, y: 0, scale: 1 } });
+                    break;
+
+                // Stroke Width
+                case '=': // + without shift
+                case '+':
+                    const newWidthInc = Math.min(20, this.store.getState().activeStrokeWidth + 1);
+                    this.store.setState({ activeStrokeWidth: newWidthInc });
+                    break;
+                case '-':
+                case '_':
+                    const newWidthDec = Math.max(1, this.store.getState().activeStrokeWidth - 1);
+                    this.store.setState({ activeStrokeWidth: newWidthDec });
                     break;
             }
         });
