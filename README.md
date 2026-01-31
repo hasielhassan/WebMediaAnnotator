@@ -111,7 +111,17 @@ npm install @web-media-annotator/react @web-media-annotator/embed
 
 ## Usage
 
-### 1. React Component
+### 1. Static Web App (Quick Reviews)
+**Zero Setup. No Server Required.**
+Perfect for quickly reviewing local files. Just open the HTML file in your browser.
+
+-   **Demo**: [quick-review.html](apps/demo/quick-review.html)
+    -   *Drag & Drop interface for local video/image files.*
+    -   *Runs completely in the browser (using ObjectURLs).*
+-   **Static Test**: [static-test.html](apps/demo/static-test.html)
+    -   *Simple hardcoded example using a public video URL.*
+
+### 2. React Component
 Best for modern React applications.
 
 ```tsx
@@ -131,7 +141,7 @@ function App() {
 }
 ```
 
-### 2. Web Component (Drop-in)
+### 3. Web Component (Drop-in)
 Works with **Vue**, **Svelte**, **Angular**, or any HTML page.
 
 **Using npm:**
@@ -149,25 +159,15 @@ import '@web-media-annotator/embed';
 ></web-media-annotator>
 ```
 
-### 3. Static HTML / CDN
-For simple static pages without a build step. Include the UMD script.
+### 4. Direct CDN / UMD Usage
+For legacy sites or static usage without a bundler.
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-    <!-- Styles (Optional) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-    <div style="width: 800px; aspect-ratio: 16/9;">
-        <web-media-annotator src="video.mp4"></web-media-annotator>
-    </div>
+<!-- Load the UMD script -->
+<script src="https://unpkg.com/@web-media-annotator/embed/dist/web-media-annotator.umd.js"></script>
 
-    <!-- Load the Bundle -->
-    <script src="./dist/web-media-annotator.umd.js"></script>
-</body>
-</html>
+<!-- Use the custom element -->
+<web-media-annotator src="video.mp4"></web-media-annotator>
 ```
 
 ## Keyboard Shortcuts
