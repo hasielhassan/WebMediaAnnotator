@@ -2,10 +2,20 @@
     "name": "@web-media-annotator/embed",
     "version": "0.1.0",
     "main": "dist/index.js",
-    "module": "dist/index.mjs",
+    "module": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./dist/web-media-annotator.umd.js": "./dist/web-media-annotator.umd.js",
+        "./dist/web-media-annotator.es.js": "./dist/web-media-annotator.es.js"
+    },
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && vite build",
+        "build:bundle": "vite build",
         "lint": "eslint src --ext .ts"
     },
     "dependencies": {
@@ -13,5 +23,9 @@
         "@web-media-annotator/react": "*",
         "react": "^18.0.0",
         "react-dom": "^18.0.0"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^4.0.0",
+        "vite": "^4.0.0"
     }
 }

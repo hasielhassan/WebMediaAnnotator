@@ -101,30 +101,106 @@ This project is designed to be used in three distinct ways depending on your nee
 
 ### Prerequisites
 - Node.js (v16+)
-- NPM
+
 
 ### Installation
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/hasielhassan/WebMediaAnnotator.git
-    cd WebMediaAnnotator
-    ```
+```bash
+npm install @web-media-annotator/react @web-media-annotator/embed
+```
 
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
+## Usage
 
-3.  Build the core package:
-    ```bash
-    npm run build -w @web-media-annotator/core
-    ```
+### 1. React Component
+Best for modern React applications.
 
-4.  Run the Demo:
-    ```bash
-    npm run dev:demo
-    ```
+```tsx
+import { Annotator } from '@web-media-annotator/react';
+import '@web-media-annotator/react/dist/style.css'; // If applicable
+
+function App() {
+  return (
+    <div style={{ width: '1000px', height: '600px' }}>
+      <Annotator 
+        src="video.mp4" 
+        fps={24} 
+        startFrame={0} 
+      />
+    </div>
+  );
+}
+```
+
+### 2. Web Component (Drop-in)
+Works with **Vue**, **Svelte**, **Angular**, or any HTML page.
+
+**Using npm:**
+```javascript
+import '@web-media-annotator/embed';
+```
+
+**Using HTML:**
+```html
+<web-media-annotator 
+    src="video.mp4" 
+    fps="24"
+    width="100%"
+    height="100%"
+></web-media-annotator>
+```
+
+### 3. Static HTML / CDN
+For simple static pages without a build step. Include the UMD script.
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Styles (Optional) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div style="width: 800px; aspect-ratio: 16/9;">
+        <web-media-annotator src="video.mp4"></web-media-annotator>
+    </div>
+
+    <!-- Load the Bundle -->
+    <script src="./dist/web-media-annotator.umd.js"></script>
+</body>
+</html>
+```
+
+## Keyboard Shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / Pause |
+| `←` / `→` | Prev / Next Frame |
+| `P` | Pencil Tool |
+| `E` | Eraser |
+| `S` | Select Tool |
+| `G` | Toggle Ghosting (Onion Skin) |
+| `H` | Toggle Hold (3 Frames) |
+| `+` / `-`| Adjust Stroke Size |
+| `Scroll`| Zoom Canvas |
+| `Mid-Click` | Pan Canvas |
+
+## Development
+
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Run Demo**
+   ```bash
+   npm run dev:demo
+   ```
+
+3. **Build Packages**
+   ```bash
+   npm run build
+   ```
     Open your browser to the URL shown (usually `http://localhost:5173` or similar).
 
 ## 🤝 Contributing
