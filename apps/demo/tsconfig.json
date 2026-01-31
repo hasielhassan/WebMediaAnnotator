@@ -23,6 +23,15 @@
     "references": [
         {
             "path": "./tsconfig.node.json"
+        },
+        {
+            "path": "../../packages/core"
+        },
+        {
+            "path": "../../packages/ui"
+        },
+        {
+            "path": "../../packages/react"
         }
     ]
 }

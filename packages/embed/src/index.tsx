@@ -112,7 +112,7 @@ export class WebMediaAnnotatorLightElement extends HTMLElement {
         this.root.render(
             <React.StrictMode>
                 <Annotator
-                    ref={(r) => this.annotatorRef = r}
+                    ref={(r: AnnotatorRef | null) => this.annotatorRef = r}
                     src={src}
                     fps={fps}
                     startFrame={startFrame}

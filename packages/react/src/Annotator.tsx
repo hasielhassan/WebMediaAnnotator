@@ -207,7 +207,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     activeStrokeWidth={state?.activeStrokeWidth}
                     onStrokeWidthChange={handleWidthChange}
                     activeDuration={state?.activeDuration || 1}
-                    onDurationChange={(d) => {
+                    onDurationChange={(d: number) => {
                         // If setting duration > 1, turn off onion skin
                         if (d > 1) {
                             annotatorRef.current?.store.setState({ activeDuration: d, isOnionSkinEnabled: false });
