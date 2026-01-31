@@ -33,8 +33,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Packages (Core, Embed, React)
-        run: npm run build --workspaces --if-present
+      - name: Build Packages (Explicit Order)
+        run: |
+          npm run build -w @web-media-annotator/core
+          npm run build -w @web-media-annotator/ui
+          npm run build -w @web-media-annotator/react
+          npm run build -w @web-media-annotator/embed
 
       - name: Build Demo App
         # Building the demo app specifically. 
