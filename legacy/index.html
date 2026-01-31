@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video FreeHand Annotator</title>
+  <style>
+    /* Base styles */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #222;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .annotator-container {
+      width: 90%;
+      max-width: 900px;
+      margin: 20px auto;
+    }
+    /* Toolbar and control styling */
+    .toolbar, .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background-color: #333;
+      border: 1px solid #555;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    /* Updated toolbar: icon buttons for drawing tools and additional controls */
+    .toolbar button {
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 8px;
+      font-size: 18px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .toolbar button.active, .toolbar button:hover {
+      background-color: #666;
+    }
+    /* Make number and color inputs compact */
+    #strokeSizeInput, #onionRange {
+      width: 40px;
+    }
+    #strokeColorPicker {
+      min-width: 50px;
+      width: 50px;
+    }
+    /* Video and canvas container */
+    .video-container {
+      position: relative;
+      width: 100%;
+      background-color: black;
+      border: 1px solid #555;
+    }
+    video {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    /* The canvas holds only annotations (transparent background) */
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      cursor: crosshair;
+      background-color: transparent;
+    }
+    /* Timeline styling */
+    .timeline {
+      position: relative;
+      width: 100%;
+      max-width: 900px;
+      margin: 10px 0;
+    }
+    .timeline input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+    datalist { display: none; }
+    .custom-markers {
+      position: absolute;
+      top: 25px;
+      left: 0;
+      width: 100%;
+      height: 10px;
+      pointer-events: none;
+    }
+    .custom-marker {
+      position: absolute;
+      width: 2px;
+      height: 10px;
+      background: red;
+    }
+    /* Controls buttons (using icons) */
+    .controls button {
+      background-color: #444;
+      color: #fff;
+      border: none;
+      padding: 8px;
+      font-size: 18px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .controls button:hover {
+      background-color: #666;
+    }
+    /* Modal styles for save and text input dialogs */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.6);
+    }
+    .modal-content {
+      background-color: #333;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #555;
+      border-radius: 5px;
+      width: 80%;
+      max-width: 400px;
+      color: #eee;
+      text-align: center;
+    }
+    .modal-content button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    /* Additional styling for the text modal inputs */
+    #textInput {
+      width: 80%;
+      padding: 5px;
+      font-size: 16px;
+    }
+    #textSizeInput {
+      width: 40px;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .toolbar, .controls {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="annotator-container">
+    <!-- Toolbar with drawing tool buttons and controls -->
+    <div class="toolbar">
+      <label for="strokeColorPicker">Color:</label>
+      <input type="color" id="strokeColorPicker" value="#FF0000">
+      <label for="strokeSizeInput">Size:</label>
+      <input type="number" id="strokeSizeInput" value="3" min="1">
+      
+      <!-- Tool selection buttons -->
+      <button id="toolFreehand" title="Freehand Drawing">✏️</button>
+      <button id="toolArrow" title="Arrow">➤</button>
+      <button id="toolCircle" title="Circle">◯</button>
+      <button id="toolSquare" title="Square">▭</button>
+      <button id="toolText" title="Text">T</button>
+      
+      <!-- Clear and eraser tools -->
+      <button id="clearDrawing" title="Clear Drawing">🗑️</button>
+      <button id="eraserTool" title="Toggle Eraser">🧽</button>
+      
+      <!-- Onion skin controls -->
+      <label for="onionSkinToggle">Onion Skin:</label>
+      <input type="checkbox" id="onionSkinToggle">
+      <label for="onionRange">Range:</label>
+      <input type="number" id="onionRange" value="2" min="0" step="1">
+    </div>
+
+    <!-- Video and annotation canvas -->
+    <div class="video-container">
+      <video id="videoElement" preload="metadata"></video>
+      <canvas id="canvasElement"></canvas>
+    </div>
+
+    <!-- Timeline slider and markers -->
+    <div class="timeline">
+      <input type="range" id="timelineSlider" min="0" max="0" step="1" list="timelineMarkers">
+      <datalist id="timelineMarkers"></datalist>
+      <div id="customMarkers" class="custom-markers"></div>
+    </div>
+
+    <!-- Playback controls -->
+    <div class="controls">
+      <span id="frameDisplay"></span>
+      <button id="prevFrame" title="Previous Frame">⏮</button>
+      <button id="playPause" title="Play/Pause">▶️</button>
+      <button id="nextFrame" title="Next Frame">⏭</button>
+      <button id="saveFrame" title="Save Current Frame">💾</button>
+      <button id="saveAllFrames" title="Save All Frames">💾</button>
+    </div>
+  </div>
+
+  <!-- Modal dialog for save options -->
+  <div id="saveModal" class="modal">
+    <div class="modal-content">
+      <p>Save whole picture or annotation only?</p>
+      <button id="modalWhole">Whole Picture</button>
+      <button id="modalAnnotation">Annotation Only</button>
+      <button id="modalCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Modal dialog for text input with extra options -->
+  <div id="textModal" class="modal">
+    <div class="modal-content">
+      <p>Enter text:</p>
+      <input type="text" id="textInput"><br>
+      <label for="textSizeInput">Size:</label>
+      <input type="number" id="textSizeInput" value="20" min="8" style="width:40px;"><br>
+      <label for="textBold">Bold</label>
+      <input type="checkbox" id="textBold">
+      <label for="textItalics">Italics</label>
+      <input type="checkbox" id="textItalics"><br>
+      <button id="textModalOk">OK</button>
+      <button id="textModalCancel">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    // VideoAnnotator encapsulates all functionality including onion skinning, modal dialogs, and extra tools.
+    class VideoAnnotator {
+      constructor(options) {
+        // Element references
+        this.videoEl = options.videoEl;
+        this.FPS = options.videoFPS;
+        this.canvasEl = options.canvasEl;
+        this.ctx = this.canvasEl.getContext('2d');
+        this.timelineSlider = options.timelineSlider;
+        this.frameDisplay = options.frameDisplay;
+        this.playPauseBtn = options.playPauseBtn;
+        this.prevFrameBtn = options.prevFrameBtn;
+        this.nextFrameBtn = options.nextFrameBtn;
+        this.clearBtn = options.clearBtn;
+        this.saveFrameBtn = options.saveFrameBtn;
+        this.saveAllFramesBtn = options.saveAllFramesBtn;
+        this.strokeColorPicker = options.strokeColorPicker;
+        this.strokeSizeInput = options.strokeSizeInput;
+        this.timelineMarkers = document.getElementById('timelineMarkers');
+        this.customMarkers = document.getElementById('customMarkers');
+
+        // Tool buttons
+        this.toolFreehandBtn = document.getElementById('toolFreehand');
+        this.toolArrowBtn = document.getElementById('toolArrow');
+        this.toolCircleBtn = document.getElementById('toolCircle');
+        this.toolSquareBtn = document.getElementById('toolSquare');
+        this.toolTextBtn = document.getElementById('toolText');
+        this.eraserToolBtn = document.getElementById('eraserTool');
+
+        // Onion skin controls
+        this.onionSkinToggle = document.getElementById('onionSkinToggle');
+        this.onionRangeInput = document.getElementById('onionRange');
+
+        // Video URL
+        this.videoURL = options.videoURL;
+
+        // State
+        this.frameDrawings = {};  // Saved annotation images per frame
+        this.currentFrame = 0;    // Starting frame
+        // Tool state: 'freehand', 'erase', 'arrow', 'circle', 'square', 'text'
+        this.currentTool = 'freehand';
+
+        // Freehand drawing variables
+        this.isDrawing = false;
+        this.lastX = 0;
+        this.lastY = 0;
+
+        // For shape drawing tools
+        this.shapeStartX = 0;
+        this.shapeStartY = 0;
+
+        // Bind methods
+        this.loadVideo = this.loadVideo.bind(this);
+        this.onVideoLoaded = this.onVideoLoaded.bind(this);
+        this.resizeCanvas = this.resizeCanvas.bind(this);
+        this.updatePlaybackFrame = this.updatePlaybackFrame.bind(this);
+        this.updateFrameDisplay = this.updateFrameDisplay.bind(this);
+        this.handleTimelineInput = this.handleTimelineInput.bind(this);
+        this.handlePlayPause = this.handlePlayPause.bind(this);
+        this.handlePrevFrame = this.handlePrevFrame.bind(this);
+        this.handleNextFrame = this.handleNextFrame.bind(this);
+        this.updateTimeFromFrame = this.updateTimeFromFrame.bind(this);
+        this.handleClear = this.handleClear.bind(this);
+        this.handleSaveFrame = this.handleSaveFrame.bind(this);
+        this.handleSaveAllFrames = this.handleSaveAllFrames.bind(this);
+        this.handleDrawingStart = this.handleDrawingStart.bind(this);
+        this.handleDrawingMove = this.handleDrawingMove.bind(this);
+        this.handleDrawingEnd = this.handleDrawingEnd.bind(this);
+        this.timelineHasMarker = this.timelineHasMarker.bind(this);
+        this.toggleEraser = this.toggleEraser.bind(this);
+        this.setTool = this.setTool.bind(this);
+        this.drawShapePreview = this.drawShapePreview.bind(this);
+        this.commitShape = this.commitShape.bind(this);
+        this.showSaveModal = this.showSaveModal.bind(this);
+        this.showTextModal = this.showTextModal.bind(this);
+
+        // Tool button event listeners
+        this.toolFreehandBtn.addEventListener('click', () => this.setTool('freehand'));
+        this.toolArrowBtn.addEventListener('click', () => this.setTool('arrow'));
+        this.toolCircleBtn.addEventListener('click', () => this.setTool('circle'));
+        this.toolSquareBtn.addEventListener('click', () => this.setTool('square'));
+        this.toolTextBtn.addEventListener('click', () => this.setTool('text'));
+        this.eraserToolBtn.addEventListener('click', this.toggleEraser);
+
+        // Listen for onion skin changes to immediately re-render
+        this.onionSkinToggle.addEventListener('change', () => this.renderAnnotations());
+
+        this.init();
+      }
+
+      init() {
+        this.loadVideo(this.videoURL);
+        this.resizeCanvas();
+        window.addEventListener('resize', this.resizeCanvas);
+        this.timelineSlider.addEventListener('input', this.handleTimelineInput);
+        this.playPauseBtn.addEventListener('click', this.handlePlayPause);
+        this.prevFrameBtn.addEventListener('click', this.handlePrevFrame);
+        this.nextFrameBtn.addEventListener('click', this.handleNextFrame);
+        this.clearBtn.addEventListener('click', this.handleClear);
+        this.saveFrameBtn.addEventListener('click', this.handleSaveFrame);
+        this.saveAllFramesBtn.addEventListener('click', this.handleSaveAllFrames);
+        this.videoEl.addEventListener('timeupdate', this.updatePlaybackFrame);
+
+        // Mouse and touch events
+        this.canvasEl.addEventListener('mousedown', this.handleDrawingStart);
+        this.canvasEl.addEventListener('mousemove', this.handleDrawingMove);
+        this.canvasEl.addEventListener('mouseup', this.handleDrawingEnd);
+        this.canvasEl.addEventListener('mouseout', () => { this.isDrawing = false; });
+        this.canvasEl.addEventListener('touchstart', (e) => { e.preventDefault(); this.handleDrawingStart(this.getTouchEvent(e)); });
+        this.canvasEl.addEventListener('touchmove', (e) => { e.preventDefault(); this.handleDrawingMove(this.getTouchEvent(e)); });
+        this.canvasEl.addEventListener('touchend', (e) => { e.preventDefault(); this.handleDrawingEnd(e); });
+      }
+
+      loadVideo(src) {
+        this.videoEl.src = src;
+        this.videoEl.onloadedmetadata = this.onVideoLoaded;
+      }
+
+      onVideoLoaded() {
+        this.resizeCanvas();
+        const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+        this.timelineSlider.max = totalFrames;
+        this.updateFrameDisplay();
+      }
+
+      resizeCanvas() {
+        this.canvasEl.width = this.videoEl.clientWidth;
+        this.canvasEl.height = this.videoEl.clientHeight;
+        this.renderAnnotations();
+      }
+
+      updatePlaybackFrame() {
+        this.currentFrame = Math.ceil(this.videoEl.currentTime * this.FPS);
+        this.timelineSlider.value = this.currentFrame;
+        this.updateFrameDisplay();
+        this.renderAnnotations();
+      }
+
+      updateFrameDisplay() {
+        const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+        const pad = (num) => num.toString().padStart(4, '0');
+        this.frameDisplay.textContent = `${pad(this.currentFrame)}/${pad(totalFrames)}`;
+      }
+
+      handleTimelineInput(e) {
+        this.currentFrame = parseInt(e.target.value, 10);
+        this.updateTimeFromFrame();
+        this.updateFrameDisplay();
+        this.renderAnnotations();
+      }
+
+      handlePlayPause() {
+        if (this.videoEl.paused) {
+          this.videoEl.play();
+          this.playPauseBtn.textContent = '⏸';
+        } else {
+          this.videoEl.pause();
+          this.playPauseBtn.textContent = '▶️';
+        }
+      }
+
+      handlePrevFrame() {
+        if (this.currentFrame > 0) {
+          this.currentFrame--;
+          this.updateTimeFromFrame();
+          this.updateFrameDisplay();
+          this.renderAnnotations();
+        }
+      }
+
+      handleNextFrame() {
+        const lastFrame = Math.ceil(this.videoEl.duration * this.FPS);
+        if (this.currentFrame < lastFrame) {
+          this.currentFrame++;
+          this.updateTimeFromFrame();
+          this.updateFrameDisplay();
+          this.renderAnnotations();
+        }
+      }
+
+      updateTimeFromFrame() {
+        this.videoEl.currentTime = this.currentFrame / this.FPS;
+      }
+
+      // Render current annotation and, if enabled, onion skin ghost annotations
+      renderAnnotations() {
+        this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
+        if (this.onionSkinToggle.checked) {
+          let range = parseInt(this.onionRangeInput.value) || 0;
+          const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+          for (let offset = -range; offset <= range; offset++) {
+            if (offset === 0) continue;
+            let frame = this.currentFrame + offset;
+            if (frame < 0 || frame > totalFrames) continue;
+            if (this.frameDrawings[frame]) {
+              // Immediate frames start at 0.5 alpha and decay by 0.1 per additional frame.
+              let baseAlpha = 0.5;
+              let decay = (Math.abs(offset) - 1) * 0.1;
+              let finalAlpha = Math.max(baseAlpha - decay, 0);
+              // Use red for previous frames, green for next frames.
+              let overlayColor = offset < 0 
+                ? 'rgba(255,0,0,' + finalAlpha + ')' 
+                : 'rgba(0,255,0,' + finalAlpha + ')';
+              this.ctx.save();
+              // Draw ghost annotation image
+              this.ctx.globalAlpha = finalAlpha;
+              this.ctx.drawImage(this.frameDrawings[frame], 0, 0, this.canvasEl.width, this.canvasEl.height);
+              // Overlay with the color
+              this.ctx.globalCompositeOperation = 'source-atop';
+              this.ctx.fillStyle = overlayColor;
+              this.ctx.fillRect(0, 0, this.canvasEl.width, this.canvasEl.height);
+              this.ctx.restore();
+            }
+          }
+        }
+        // Draw current frame annotation
+        if (this.frameDrawings[this.currentFrame]) {
+          this.ctx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, this.canvasEl.width, this.canvasEl.height);
+        }
+      }
+
+      handleDrawingStart(e) {
+        this.isDrawing = true;
+        if (this.currentTool === 'freehand' || this.currentTool === 'erase') {
+          this.lastX = e.offsetX;
+          this.lastY = e.offsetY;
+        } else {
+          // For shapes and text, record starting position.
+          this.shapeStartX = e.offsetX;
+          this.shapeStartY = e.offsetY;
+        }
+      }
+
+      handleDrawingMove(e) {
+        if (!this.isDrawing) return;
+        if (this.currentTool === 'freehand' || this.currentTool === 'erase') {
+          if (this.currentTool === 'erase') {
+            this.ctx.globalCompositeOperation = 'destination-out';
+          } else {
+            this.ctx.globalCompositeOperation = 'source-over';
+            this.ctx.strokeStyle = this.strokeColorPicker.value;
+          }
+          this.ctx.lineWidth = this.strokeSizeInput.value;
+          this.ctx.lineCap = 'round';
+          this.ctx.beginPath();
+          this.ctx.moveTo(this.lastX, this.lastY);
+          this.ctx.lineTo(e.offsetX, e.offsetY);
+          this.ctx.stroke();
+          this.lastX = e.offsetX;
+          this.lastY = e.offsetY;
+          this.ctx.globalCompositeOperation = 'source-over';
+        } else {
+          // For shape and text tools, show a preview.
+          this.renderAnnotations();
+          this.drawShapePreview(e.offsetX, e.offsetY);
+        }
+      }
+
+      handleDrawingEnd(e) {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+        if (this.currentTool === 'freehand' || this.currentTool === 'erase') {
+          const image = new Image();
+          image.onload = () => { this.renderAnnotations(); };
+          image.src = this.canvasEl.toDataURL('image/png');
+          this.frameDrawings[this.currentFrame] = image;
+          if (!this.timelineHasMarker(this.currentFrame)) {
+            const option = document.createElement("option");
+            option.value = this.currentFrame;
+            this.timelineMarkers.appendChild(option);
+            const marker = document.createElement("div");
+            marker.classList.add("custom-marker");
+            const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+            const percent = (this.currentFrame / totalFrames) * 100;
+            marker.style.left = percent + '%';
+            marker.dataset.frame = this.currentFrame;
+            this.customMarkers.appendChild(marker);
+          }
+        } else if (this.currentTool === 'arrow' || this.currentTool === 'circle' || this.currentTool === 'square') {
+          this.commitShape(e.offsetX, e.offsetY);
+        } else if (this.currentTool === 'text') {
+          // For text, only a horizontal line preview is shown; then prompt for text.
+          this.showTextModal(this.shapeStartX, this.shapeStartY);
+        }
+      }
+
+      timelineHasMarker(frame) {
+        return this.timelineMarkers.querySelector(`option[value="${frame}"]`) !== null;
+      }
+
+      getTouchEvent(e) {
+        const touch = e.touches[0];
+        const rect = this.canvasEl.getBoundingClientRect();
+        return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+      }
+
+      handleClear() {
+        if (this.frameDrawings[this.currentFrame]) {
+          delete this.frameDrawings[this.currentFrame];
+          const markerOption = this.timelineMarkers.querySelector(`option[value="${this.currentFrame}"]`);
+          if (markerOption) markerOption.remove();
+          Array.from(this.customMarkers.children).forEach(marker => {
+            if (marker.dataset.frame == this.currentFrame) marker.remove();
+          });
+          this.renderAnnotations();
+        }
+      }
+
+      toggleEraser() {
+        if (this.currentTool === 'erase') {
+          this.currentTool = 'freehand';
+          this.eraserToolBtn.title = 'Toggle Eraser';
+        } else {
+          this.currentTool = 'erase';
+          this.eraserToolBtn.title = 'Eraser Mode: On';
+        }
+      }
+
+      setTool(tool) {
+        this.currentTool = tool;
+        // Update visual state for tool buttons.
+        [this.toolFreehandBtn, this.toolArrowBtn, this.toolCircleBtn, this.toolSquareBtn, this.toolTextBtn].forEach(btn => {
+          btn.classList.remove('active');
+        });
+        if (tool === 'freehand') this.toolFreehandBtn.classList.add('active');
+        if (tool === 'arrow') this.toolArrowBtn.classList.add('active');
+        if (tool === 'circle') this.toolCircleBtn.classList.add('active');
+        if (tool === 'square') this.toolSquareBtn.classList.add('active');
+        if (tool === 'text') this.toolTextBtn.classList.add('active');
+      }
+
+      drawShapePreview(endX, endY) {
+        this.ctx.lineWidth = this.strokeSizeInput.value;
+        this.ctx.strokeStyle = this.strokeColorPicker.value;
+        this.ctx.lineCap = 'round';
+        switch (this.currentTool) {
+          case 'arrow':
+            this.drawArrow(this.ctx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+          case 'circle':
+            this.drawCircle(this.ctx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+          case 'square':
+            this.drawSquare(this.ctx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+          case 'text':
+            // For text, draw only a horizontal line preview.
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.shapeStartX, this.shapeStartY);
+            this.ctx.lineTo(endX, this.shapeStartY);
+            this.ctx.stroke();
+            break;
+        }
+      }
+
+      commitShape(endX, endY) {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = this.canvasEl.width;
+        offCanvas.height = this.canvasEl.height;
+        const offCtx = offCanvas.getContext('2d');
+        if (this.frameDrawings[this.currentFrame]) {
+          offCtx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, offCanvas.width, offCanvas.height);
+        }
+        offCtx.lineWidth = this.strokeSizeInput.value;
+        offCtx.strokeStyle = this.strokeColorPicker.value;
+        offCtx.lineCap = 'round';
+        switch (this.currentTool) {
+          case 'arrow':
+            this.drawArrow(offCtx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+          case 'circle':
+            this.drawCircle(offCtx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+          case 'square':
+            this.drawSquare(offCtx, this.shapeStartX, this.shapeStartY, endX, endY);
+            break;
+        }
+        const image = new Image();
+        image.onload = () => { this.renderAnnotations(); };
+        image.src = offCanvas.toDataURL('image/png');
+        this.frameDrawings[this.currentFrame] = image;
+        if (!this.timelineHasMarker(this.currentFrame)) {
+          const option = document.createElement("option");
+          option.value = this.currentFrame;
+          this.timelineMarkers.appendChild(option);
+          const marker = document.createElement("div");
+          marker.classList.add("custom-marker");
+          const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+          const percent = (this.currentFrame / totalFrames) * 100;
+          marker.style.left = percent + '%';
+          marker.dataset.frame = this.currentFrame;
+          this.customMarkers.appendChild(marker);
+        }
+        this.renderAnnotations();
+      }
+
+      drawArrow(ctx, x1, y1, x2, y2) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const headLength = 10;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 6), y2 - headLength * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 6), y2 - headLength * Math.sin(angle + Math.PI / 6));
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      drawCircle(ctx, x1, y1, x2, y2) {
+        const radius = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        ctx.beginPath();
+        ctx.arc(x1, y1, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      drawSquare(ctx, x1, y1, x2, y2) {
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      }
+
+      // Custom modal for save options
+      showSaveModal() {
+        return new Promise((resolve) => {
+          const modal = document.getElementById('saveModal');
+          modal.style.display = 'block';
+          const wholeBtn = document.getElementById('modalWhole');
+          const annotationBtn = document.getElementById('modalAnnotation');
+          const cancelBtn = document.getElementById('modalCancel');
+          function cleanUp() {
+            modal.style.display = 'none';
+            wholeBtn.removeEventListener('click', onWhole);
+            annotationBtn.removeEventListener('click', onAnnotation);
+            cancelBtn.removeEventListener('click', onCancel);
+          }
+          function onWhole() { cleanUp(); resolve('whole'); }
+          function onAnnotation() { cleanUp(); resolve('annotation'); }
+          function onCancel() { cleanUp(); resolve('cancel'); }
+          wholeBtn.addEventListener('click', onWhole);
+          annotationBtn.addEventListener('click', onAnnotation);
+          cancelBtn.addEventListener('click', onCancel);
+        });
+      }
+
+      // Modal for text input with extra options
+      showTextModal(x, y) {
+        return new Promise((resolve) => {
+          const modal = document.getElementById('textModal');
+          modal.style.display = 'block';
+          const textInput = document.getElementById('textInput');
+          textInput.value = '';
+          textInput.focus();
+          const textSizeInput = document.getElementById('textSizeInput');
+          const textBold = document.getElementById('textBold');
+          const textItalics = document.getElementById('textItalics');
+          const okBtn = document.getElementById('textModalOk');
+          const cancelBtn = document.getElementById('textModalCancel');
+          function cleanUp() {
+            modal.style.display = 'none';
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+          }
+          function onOk() { cleanUp(); resolve({ text: textInput.value, size: textSizeInput.value, bold: textBold.checked, italics: textItalics.checked }); }
+          function onCancel() { cleanUp(); resolve(null); }
+          okBtn.addEventListener('click', onOk);
+          cancelBtn.addEventListener('click', onCancel);
+        }).then(result => {
+          if (result !== null) {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = this.canvasEl.width;
+            offCanvas.height = this.canvasEl.height;
+            const offCtx = offCanvas.getContext('2d');
+            if (this.frameDrawings[this.currentFrame]) {
+              offCtx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, offCanvas.width, offCanvas.height);
+            }
+            offCtx.fillStyle = this.strokeColorPicker.value;
+            let fontWeight = result.bold ? 'bold' : 'normal';
+            let fontStyle = result.italics ? 'italic' : 'normal';
+            offCtx.font = `${fontStyle} ${fontWeight} ${result.size}px sans-serif`;
+            offCtx.fillText(result.text, x, y);
+            const image = new Image();
+            image.onload = () => { this.renderAnnotations(); };
+            image.src = offCanvas.toDataURL('image/png');
+            this.frameDrawings[this.currentFrame] = image;
+            if (!this.timelineHasMarker(this.currentFrame)) {
+              const option = document.createElement("option");
+              option.value = this.currentFrame;
+              this.timelineMarkers.appendChild(option);
+              const marker = document.createElement("div");
+              marker.classList.add("custom-marker");
+              const totalFrames = Math.ceil(this.videoEl.duration * this.FPS);
+              const percent = (this.currentFrame / totalFrames) * 100;
+              marker.style.left = percent + '%';
+              marker.dataset.frame = this.currentFrame;
+              this.customMarkers.appendChild(marker);
+            }
+            this.renderAnnotations();
+          }
+        });
+      }
+
+      compositeCurrentFrame() {
+        // Temporarily disable onion skin to capture only the saved annotation.
+        const onionWasEnabled = this.onionSkinToggle.checked;
+        if (onionWasEnabled) {
+          this.onionSkinToggle.checked = false;
+          this.renderAnnotations();
+        }
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = this.canvasEl.width;
+        compositeCanvas.height = this.canvasEl.height;
+        const compCtx = compositeCanvas.getContext('2d');
+        compCtx.drawImage(this.videoEl, 0, 0, compositeCanvas.width, compositeCanvas.height);
+        if (this.frameDrawings[this.currentFrame]) {
+          compCtx.drawImage(this.frameDrawings[this.currentFrame], 0, 0, compositeCanvas.width, compositeCanvas.height);
+        }
+        if (onionWasEnabled) {
+          this.onionSkinToggle.checked = true;
+          this.renderAnnotations();
+        }
+        return compositeCanvas.toDataURL('image/png');
+      }
+
+      compositeFrame(frameNumber) {
+        return new Promise((resolve) => {
+          const originalTime = this.videoEl.currentTime;
+          this.videoEl.currentTime = frameNumber / this.FPS;
+          this.videoEl.addEventListener('seeked', () => {
+            const compositeCanvas = document.createElement('canvas');
+            compositeCanvas.width = this.canvasEl.width;
+            compositeCanvas.height = this.canvasEl.height;
+            const compCtx = compositeCanvas.getContext('2d');
+            compCtx.drawImage(this.videoEl, 0, 0, compositeCanvas.width, compositeCanvas.height);
+            if (this.frameDrawings[frameNumber]) {
+              compCtx.drawImage(this.frameDrawings[frameNumber], 0, 0, compositeCanvas.width, compositeCanvas.height);
+            }
+            resolve(compositeCanvas.toDataURL('image/png'));
+            this.videoEl.currentTime = originalTime;
+          }, { once: true });
+        });
+      }
+
+      downloadFrame(frameNum, url) {
+        const filename = `frame-${frameNum}.png`;
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      async handleSaveFrame() {
+        const result = await this.showSaveModal();
+        if (result === 'cancel') return;
+        let dataURL;
+        if (result === 'whole') {
+          dataURL = this.compositeCurrentFrame();
+        } else {
+          // Temporarily disable onion skin so ghost images are not saved.
+          const onionWasEnabled = this.onionSkinToggle.checked;
+          if (onionWasEnabled) {
+            this.onionSkinToggle.checked = false;
+            this.renderAnnotations();
+          }
+          dataURL = this.canvasEl.toDataURL('image/png');
+          if (onionWasEnabled) {
+            this.onionSkinToggle.checked = true;
+            this.renderAnnotations();
+          }
+        }
+        this.downloadFrame(this.currentFrame, dataURL);
+      }
+
+      async handleSaveAllFrames() {
+        const result = await this.showSaveModal();
+        if (result === 'cancel') return;
+        for (const frame in this.frameDrawings) {
+          if (this.frameDrawings.hasOwnProperty(frame)) {
+            let dataURL;
+            if (result === 'whole') {
+              dataURL = await this.compositeFrame(frame);
+            } else {
+              dataURL = this.frameDrawings[frame].src;
+            }
+            this.downloadFrame(frame, dataURL);
+          }
+        }
+      }
+    }
+
+    const locationURL = window.location.href;
+    new VideoAnnotator({
+      videoURL: locationURL + "mov_bbb.mp4",
+      videoFPS: 30,
+      videoEl: document.getElementById('videoElement'),
+      canvasEl: document.getElementById('canvasElement'),
+      timelineSlider: document.getElementById('timelineSlider'),
+      frameDisplay: document.getElementById('frameDisplay'),
+      playPauseBtn: document.getElementById('playPause'),
+      prevFrameBtn: document.getElementById('prevFrame'),
+      nextFrameBtn: document.getElementById('nextFrame'),
+      clearBtn: document.getElementById('clearDrawing'),
+      saveFrameBtn: document.getElementById('saveFrame'),
+      saveAllFramesBtn: document.getElementById('saveAllFrames'),
+      strokeColorPicker: document.getElementById('strokeColorPicker'),
+      strokeSizeInput: document.getElementById('strokeSizeInput')
+    });
+  </script>
+</body>
+</html>
