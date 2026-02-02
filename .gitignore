@@ -37,3 +37,6 @@ coverage/
 
 # Artifacts
 tmp/
+_deploy_test/
+screenshot.png
+.gemini/
