@@ -6,13 +6,13 @@ export class PanTool extends BaseTool {
     private isDragging: boolean = false;
 
     // We rely on 'e' (screen coordinates) for stable panning
-    onMouseDown(x: number, y: number, e: MouseEvent): void {
+    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent): void {
         this.isDragging = true;
         this.lastX = e.clientX;
         this.lastY = e.clientY;
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent): void {
+    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent): void {
         if (!this.isDragging) return;
 
         // Calculate delta in SCREEN PIXELS directly
@@ -34,7 +34,7 @@ export class PanTool extends BaseTool {
         this.lastY = e.clientY;
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent): void {
+    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent): void {
         this.isDragging = false;
     }
 }

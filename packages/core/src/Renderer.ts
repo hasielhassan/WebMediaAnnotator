@@ -23,6 +23,7 @@ export class Renderer {
                 newState.annotations !== oldState.annotations ||
                 newState.isOnionSkinEnabled !== oldState.isOnionSkinEnabled ||
                 newState.onionSkinPrevFrames !== oldState.onionSkinPrevFrames ||
+                newState.holdDuration !== oldState.holdDuration ||
                 newState.viewport !== oldState.viewport
             ) {
                 this.render();

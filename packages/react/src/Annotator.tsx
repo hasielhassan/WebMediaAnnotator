@@ -3,6 +3,7 @@ import { WebMediaAnnotator, AppState } from '@web-media-annotator/core';
 import { Toolbar, Popover } from '@web-media-annotator/ui';
 import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info } from 'lucide-react';
 import { Player } from '@web-media-annotator/core';
+import { SyncPanel } from './SyncPanel';
 
 export interface AnnotatorProps {
     src: string;
@@ -206,21 +207,26 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     onColorChange={handleColorChange}
                     activeStrokeWidth={state?.activeStrokeWidth}
                     onStrokeWidthChange={handleWidthChange}
-                    activeDuration={state?.activeDuration || 1}
-                    onDurationChange={(d: number) => {
-                        // If setting duration > 1, turn off onion skin
+
+                    defaultDuration={state?.defaultDuration || 1}
+                    onDefaultDurationChange={(d) => annotatorRef.current?.store.setState({ defaultDuration: d })}
+
+                    holdDuration={state?.holdDuration || 1}
+                    onHoldDurationChange={(d: number) => {
+                        // If setting hold > 1, turn off onion skin
                         if (d > 1) {
-                            annotatorRef.current?.store.setState({ activeDuration: d, isOnionSkinEnabled: false });
+                            annotatorRef.current?.store.setState({ holdDuration: d, isOnionSkinEnabled: false });
                         } else {
-                            annotatorRef.current?.store.setState({ activeDuration: d });
+                            annotatorRef.current?.store.setState({ holdDuration: d });
                         }
                     }}
+
                     isOnionSkinEnabled={state?.isOnionSkinEnabled}
                     onToggleOnionSkin={() => {
                         const nextState = !state?.isOnionSkinEnabled;
-                        // If turning on onion skin, reset duration to 1
+                        // If turning on onion skin, reset hold to 1
                         if (nextState) {
-                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: true, activeDuration: 1 });
+                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: true, holdDuration: 1 });
                         } else {
                             annotatorRef.current?.store.setState({ isOnionSkinEnabled: false });
                         }
@@ -233,6 +239,10 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                 <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10">
                     <button title="Undo" onClick={handleUndo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Undo2 size={16} /></button>
                     <button title="Redo" onClick={handleRedo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Redo2 size={16} /></button>
+                </div>
+
+                <div className="flex px-2 items-center border-l border-gray-800 h-10">
+                    <SyncPanel annotator={annotatorRef.current} />
                 </div>
 
                 {/* Export / Import Menu */}

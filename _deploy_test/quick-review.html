@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Media Annotator - Quick Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #000;
+            color: white;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Ensure the custom element takes remaining space specifically */
+        web-media-annotator {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            flex-grow: 1;
+            /* Ensure it grows */
+        }
+
+        #drop-zone {
+            border: 2px dashed #444;
+            border-radius: 1rem;
+        }
+
+        #drop-zone.dragover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-950 font-sans">
+
+    <!-- Header -->
+    <header class="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-gray-900/50 backdrop-blur">
+        <div class="flex items-center gap-2">
+            <span
+                class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Web
+                Media Annotator</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">Quick
+                Review</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="document.getElementById('file-input').click()"
+                class="text-sm text-gray-400 hover:text-white transition-colors">
+                Open File...
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 relative bg-black flex items-center justify-center">
+
+        <!-- Empty State / Drop Zone -->
+        <div id="drop-zone" class="absolute inset-4 flex flex-col items-center justify-center transition-colors z-10">
+            <div class="text-center space-y-4">
+                <div
+                    class="w-20 h-20 bg-gray-900/50 rounded-full flex items-center justify-center mx-auto border border-gray-800">
+                    <svg class="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                        </path>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-200">Drop Video or Image Here</h2>
+                    <p class="text-gray-500 mt-2">or click to browse</p>
+                </div>
+                <button onclick="document.getElementById('file-input').click()"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-blue-900/20">
+                    Select File
+                </button>
+            </div>
+        </div>
+
+        <!-- Annotator Container (Hidden initially) -->
+        <div id="annotator-container" class="hidden absolute inset-0 z-20 overflow-hidden">
+            <web-media-annotator id="annotator"></web-media-annotator>
+        </div>
+
+    </main>
+
+    <input type="file" id="file-input" class="hidden" accept="video/*,image/*">
+
+    <!-- Script Logic -->
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const annotatorContainer = document.getElementById('annotator-container');
+        const annotator = document.getElementById('annotator');
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                loadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Click Upload
+        dropZone.addEventListener('click', (e) => {
+            if (e.target === dropZone) fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                loadFile(e.target.files[0]);
+            }
+        });
+
+        function loadFile(file) {
+            const url = URL.createObjectURL(file);
+
+            // Hide drop zone, show annotator container
+            dropZone.classList.add('hidden');
+            annotatorContainer.classList.remove('hidden');
+
+            // Set source
+            annotator.setAttribute('src', url);
+            // Optional: Try to guess FPS or default to 24
+            annotator.setAttribute('fps', '24');
+        }
+    </script>
+
+    <!-- Load UMD Bundle -->
+    <script src="./packages/embed/dist/web-media-annotator.umd.js"></script>
+</body>
+
+</html>

@@ -10,11 +10,13 @@
         "lint": "eslint src --ext .ts"
     },
     "dependencies": {
+        "eventemitter3": "^5.0.0",
+        "peerjs": "^1.5.5",
         "uuid": "^9.0.0",
-        "eventemitter3": "^5.0.0"
+        "yjs": "^13.6.29"
     },
     "devDependencies": {
-        "vitest": "^0.34.0",
-        "@types/uuid": "^9.0.0"
+        "@types/uuid": "^9.0.0",
+        "vitest": "^0.34.0"
     }
 }

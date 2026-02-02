@@ -7,7 +7,7 @@ export class SelectTool extends BaseTool {
     private selectedAnnotationId: string | null = null;
     private initialAnnotationState: Annotation | null = null;
 
-    onMouseDown(x: number, y: number) {
+    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
         // 1. Hit Test
         const frame = this.store.getState().currentFrame;
         const annotations = this.store.getAnnotationsForFrame(frame);
@@ -34,7 +34,7 @@ export class SelectTool extends BaseTool {
         }
     }
 
-    onMouseMove(x: number, y: number) {
+    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
         if (!this.isDragging || !this.selectedAnnotationId || !this.startDragPoint || !this.initialAnnotationState) return;
 
         const dx = x - this.startDragPoint.x;
@@ -50,7 +50,7 @@ export class SelectTool extends BaseTool {
         }
     }
 
-    onMouseUp(x: number, y: number) {
+    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
         if (this.isDragging) {
             this.store.captureSnapshot();
         }

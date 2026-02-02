@@ -7,7 +7,7 @@ export class TextTool extends BaseTool {
     private isEditing = false;
     private finishEditing: (() => void) | null = null;
 
-    onMouseDown(x: number, y: number) {
+    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
         // If already editing, finish that first
         if (this.isEditing && this.finishEditing) {
             this.finishEditing();
@@ -51,7 +51,7 @@ export class TextTool extends BaseTool {
                 const newAnnotation: Annotation = {
                     id: uuidv4(),
                     frame: state.currentFrame,
-                    duration: state.activeDuration,
+                    duration: state.defaultDuration,
                     type: 'text',
                     points: [{ x, y }],
                     text: text,
@@ -91,6 +91,6 @@ export class TextTool extends BaseTool {
         });
     }
 
-    onMouseMove(x: number, y: number) { }
-    onMouseUp(x: number, y: number) { }
+    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) { }
+    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) { }
 }

@@ -1,6 +1,6 @@
 import { Store, AppState } from './Store';
 import { Player } from './Player';
-import { SyncManager } from './SyncManager';
+import { LinkSync } from './LinkSync';
 import { Renderer } from './Renderer';
 import { PluginManager } from './PluginManager';
 import { BaseTool } from './tools/BaseTool';
@@ -15,7 +15,7 @@ import { PanTool } from './tools/PanTool';
 export class WebMediaAnnotator {
     public store: Store;
     public player: Player;
-    public sync: SyncManager;
+    public sync: LinkSync;
     public renderer: Renderer;
     public plugins: PluginManager;
 
@@ -29,6 +29,9 @@ export class WebMediaAnnotator {
 
     // State for temporary tool switching
     private previousTool: string | null = null;
+    private isRemotePlayback = false; // Mutex for playback sync
+    private isRemoteSessionUpdate = false; // Mutex for session params sync
+    private clipboard: any = null;
 
     constructor(container: HTMLElement, options: {
         videoSrc?: string;
@@ -60,6 +63,7 @@ export class WebMediaAnnotator {
         this.canvasElement.style.top = '0';
         this.canvasElement.style.left = '0';
         this.canvasElement.style.pointerEvents = 'auto'; // allow interaction
+        this.canvasElement.style.touchAction = 'none'; // Critical for Pointer Events handling
         this.container.appendChild(this.canvasElement);
 
         // 3. Initialize Core
@@ -69,7 +73,7 @@ export class WebMediaAnnotator {
         });
 
         this.player = new Player(this.store, this.videoElement);
-        this.sync = new SyncManager(this.store, this.player);
+        this.sync = new LinkSync();
         this.renderer = new Renderer(this.store, this.canvasElement, this.videoElement);
         this.plugins = new PluginManager(this);
 
@@ -107,46 +111,85 @@ export class WebMediaAnnotator {
         this.initInteraction();
         this.initShortcuts();
         this.initResizeObserver();
+        this.initSyncBinding();
     }
 
     private initInteraction() {
+        // Multi-touch State
+        const activePointers = new Map<number, PointerEvent>();
+        let initialPinchDist: number | null = null;
+        let initialScale = 1;
+
+        const getDist = (p1: PointerEvent, p2: PointerEvent) => {
+            return Math.sqrt(Math.pow(p1.clientX - p2.clientX, 2) + Math.pow(p1.clientY - p2.clientY, 2));
+        };
+
         // Simple Interaction Dispatcher
-        const getXY = (e: MouseEvent) => {
+        const getXY = (e: MouseEvent | PointerEvent) => {
             const rect = this.canvasElement.getBoundingClientRect();
             // With CSS Transforms, getBoundingClientRect returns the VISUAL position/size.
-            // e.clientX is also visual.
-            // So (x - left) is the pixel offset inside the visual box.
-            // Dividing by rect.width gives the 0-1 normalized position relative to the SCALED content.
-            // This is exactly what we want for 0-1 storage.
             return {
                 x: (e.clientX - rect.left) / rect.width,
-                y: (e.clientY - rect.top) / rect.height
+                y: (e.clientY - rect.top) / rect.height,
+                pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
             };
         };
 
-        this.canvasElement.addEventListener('mousedown', (e) => {
+        this.canvasElement.addEventListener('pointerdown', (e) => {
+            activePointers.set(e.pointerId, e);
+            this.canvasElement.setPointerCapture(e.pointerId);
+
+            if (activePointers.size === 2) {
+                // Start Pinch
+                const points = Array.from(activePointers.values());
+                initialPinchDist = getDist(points[0], points[1]);
+                initialScale = this.store.getState().viewport.scale;
+                return;
+            }
+
             // Middle Mouse (Button 1) -> Temporary Pan
             if (e.button === 1) {
                 e.preventDefault();
                 this.previousTool = this.store.getState().activeTool;
                 this.store.setState({ activeTool: 'pan' });
-                // We also trigger onMouseDown for the Pan tool immediately so it starts dragging
                 const { x, y } = getXY(e);
                 const panTool = this.tools.get('pan');
                 if (panTool) panTool.onMouseDown(x, y, e);
                 return;
             }
 
-            const { x, y } = getXY(e);
-            const toolName = this.store.getState().activeTool;
-            const tool = this.tools.get(toolName);
-            if (tool) tool.onMouseDown(x, y, e);
+            if (activePointers.size === 1) {
+                const { x, y, pressure } = getXY(e);
+                const toolName = this.store.getState().activeTool;
+                const tool = this.tools.get(toolName);
+                if (tool) tool.onMouseDown(x, y, e);
+            }
         });
 
-        window.addEventListener('mousemove', (e) => {
-            // Window listener for drag outside
+        window.addEventListener('pointermove', (e) => {
             const rect = this.canvasElement.getBoundingClientRect();
-            // Recalculate x/y for the window event
+            // Update pointer record
+            if (activePointers.has(e.pointerId)) {
+                activePointers.set(e.pointerId, e);
+            }
+
+            // Pinch Zoom Logic
+            if (activePointers.size === 2 && initialPinchDist) {
+                const points = Array.from(activePointers.values());
+                const dist = getDist(points[0], points[1]);
+                const scaleFactor = dist / initialPinchDist;
+
+                // Update Scale (clamped)
+                const newScale = Math.min(Math.max(0.1, initialScale * scaleFactor), 5);
+
+                const vp = this.store.getState().viewport;
+                this.store.setState({
+                    viewport: { ...vp, scale: newScale }
+                });
+                return;
+            }
+
+            // Standard Move
             const x = (e.clientX - rect.left) / rect.width;
             const y = (e.clientY - rect.top) / rect.height;
 
@@ -155,11 +198,17 @@ export class WebMediaAnnotator {
             if (tool) tool.onMouseMove(x, y, e);
         });
 
-        window.addEventListener('mouseup', (e) => {
+        window.addEventListener('pointerup', (e) => {
+            activePointers.delete(e.pointerId);
+            this.canvasElement.releasePointerCapture(e.pointerId);
+
+            if (activePointers.size < 2) {
+                initialPinchDist = null;
+            }
+
             // Middle Mouse Up -> Revert Tool
             if (e.button === 1 && this.previousTool) {
                 const panTool = this.tools.get('pan');
-                // Finish pan drag
                 const rect = this.canvasElement.getBoundingClientRect();
                 const x = (e.clientX - rect.left) / rect.width;
                 const y = (e.clientY - rect.top) / rect.height;
@@ -177,6 +226,19 @@ export class WebMediaAnnotator {
             const tool = this.tools.get(toolName);
             if (tool) tool.onMouseUp(x, y, e);
         });
+
+        // Wheel Zoom
+        this.canvasElement.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                const zoomSpeed = 0.001;
+                const vp = this.store.getState().viewport;
+                const newScale = Math.min(Math.max(0.1, vp.scale + (-e.deltaY * zoomSpeed * vp.scale)), 5); // Logarithmic-ish
+                this.store.setState({
+                    viewport: { ...vp, scale: newScale }
+                });
+            }
+        }, { passive: false });
     }
 
     private initShortcuts() {
@@ -194,6 +256,28 @@ export class WebMediaAnnotator {
                 if (e.key === 'y') {
                     e.preventDefault();
                     this.store.redo();
+                    return;
+                }
+                if (e.key === 'c') {
+                    const selId = this.store.getState().selectedAnnotationId;
+                    if (selId) {
+                        const ann = this.store.getState().annotations.find(a => a.id === selId);
+                        if (ann) this.clipboard = JSON.parse(JSON.stringify(ann));
+                    }
+                    return;
+                }
+                if (e.key === 'v') {
+                    if (this.clipboard) {
+                        const newAnn = JSON.parse(JSON.stringify(this.clipboard));
+                        newAnn.id = crypto.randomUUID();
+                        newAnn.frame = this.store.getState().currentFrame;
+                        // Offset
+                        if (newAnn.points) {
+                            newAnn.points = newAnn.points.map((p: any) => ({ x: p.x + 0.02, y: p.y + 0.02 }));
+                        }
+                        this.store.addAnnotation(newAnn);
+                        this.store.setState({ selectedAnnotationId: newAnn.id });
+                    }
                     return;
                 }
                 // Navigation by Annotated Frames
@@ -245,7 +329,7 @@ export class WebMediaAnnotator {
 
                     if (!isCurrentlyEnabled) {
                         // Turning ON: Enable ghosting, reset duration to 1
-                        this.store.setState({ isOnionSkinEnabled: true, activeDuration: 1 });
+                        this.store.setState({ isOnionSkinEnabled: true, holdDuration: 1 });
                     } else {
                         // Turning OFF
                         this.store.setState({ isOnionSkinEnabled: false });
@@ -253,12 +337,12 @@ export class WebMediaAnnotator {
                     break;
 
                 case 'h':
-                    const currentDur = this.store.getState().activeDuration;
+                    const currentDur = this.store.getState().holdDuration;
                     if (currentDur > 1) {
-                        this.store.setState({ activeDuration: 1 });
+                        this.store.setState({ holdDuration: 1 });
                     } else {
-                        // Default to 3 frames, turn off ghosting
-                        this.store.setState({ activeDuration: 3, isOnionSkinEnabled: false });
+                        // Default to 24 frames (Standard Hold), turn off ghosting
+                        this.store.setState({ holdDuration: 24, isOnionSkinEnabled: false });
                     }
                     break;
 
@@ -278,6 +362,168 @@ export class WebMediaAnnotator {
                     const newWidthDec = Math.max(1, this.store.getState().activeStrokeWidth - 1);
                     this.store.setState({ activeStrokeWidth: newWidthDec });
                     break;
+            }
+        });
+    }
+
+    private initSyncBinding() {
+        // 1. Local (Store) -> Remote (Sync)
+        this.store.on('annotation:added', (ann, fromRemote) => {
+            if (fromRemote) return;
+            if (ann.id.startsWith('temp_')) return; // Filter temp
+
+            console.log(`[LinkSync DEBUG] Sending to Yjs: ${ann.id}, Dur: ${ann.duration}`);
+            // Add to Yjs Map
+            this.sync.annotationsMap.set(ann.id, ann);
+        });
+
+        this.store.on('annotation:updated', (id, updates, fromRemote) => {
+            if (fromRemote) return;
+            if (id.startsWith('temp_')) return; // Filter temp
+
+            // Update Yjs Map entry
+            const existing = this.sync.annotationsMap.get(id);
+            if (existing) {
+                this.sync.annotationsMap.set(id, { ...existing, ...updates });
+            }
+        });
+
+        this.store.on('annotation:deleted', (id, fromRemote) => {
+            if (fromRemote) return;
+            if (id.startsWith('temp_')) return; // Filter temp
+            this.sync.annotationsMap.delete(id);
+        });
+
+        // Session Params Sync (Onion Skin & Holding)
+        this.store.on('state:changed', (newState, oldState) => {
+            if (this.isRemoteSessionUpdate) return;
+
+            // Onion Skin
+            if (newState.isOnionSkinEnabled !== oldState.isOnionSkinEnabled ||
+                newState.onionSkinPrevFrames !== oldState.onionSkinPrevFrames ||
+                newState.onionSkinNextFrames !== oldState.onionSkinNextFrames) {
+
+                this.sync.sessionMap.set('onionSkin', {
+                    enabled: newState.isOnionSkinEnabled,
+                    prev: newState.onionSkinPrevFrames,
+                    next: newState.onionSkinNextFrames
+                });
+            }
+
+            // Holding (View Mode) - Sync only if changed
+            if (newState.holdDuration !== oldState.holdDuration) {
+                this.sync.sessionMap.set('holdDuration', newState.holdDuration);
+            }
+        });
+
+        // 2. Remote (Sync) -> Local (Store)
+        this.sync.annotationsMap.observe((event) => {
+            event.changes.keys.forEach((change, key) => {
+                if (change.action === 'add') {
+                    const ann = this.sync.annotationsMap.get(key);
+                    if (ann && event.transaction.origin === this.sync) {
+                        this.store.addAnnotation(ann, true);
+                    }
+                } else if (change.action === 'update') {
+                    const ann = this.sync.annotationsMap.get(key);
+                    if (ann && event.transaction.origin === this.sync) {
+                        this.store.updateAnnotation(key, ann, true);
+                    }
+                } else if (change.action === 'delete') {
+                    if (event.transaction.origin === this.sync) {
+                        this.store.deleteAnnotation(key, true);
+                    }
+                }
+            });
+        });
+
+        // Listen for Session Params
+        this.sync.sessionMap.observe((event) => {
+            if (event.transaction.origin === this.sync) {
+                this.isRemoteSessionUpdate = true;
+
+                // Onion Skin
+                if (event.keysChanged.has('onionSkin')) {
+                    const params = this.sync.sessionMap.get('onionSkin');
+                    if (params) {
+                        this.store.setState({
+                            isOnionSkinEnabled: params.enabled,
+                            onionSkinPrevFrames: params.prev,
+                            onionSkinNextFrames: params.next
+                        });
+                    }
+                }
+
+                // Holding
+                if (event.keysChanged.has('holdDuration')) {
+                    const dur = this.sync.sessionMap.get('holdDuration');
+                    if (typeof dur === 'number') {
+                        this.store.setState({ holdDuration: dur });
+                    }
+                }
+
+                // Reset mutex
+                setTimeout(() => {
+                    this.isRemoteSessionUpdate = false;
+                }, 0);
+            }
+        });
+        this.initPlaybackSync();
+    }
+
+    private initPlaybackSync() {
+        this.sync.on('playback:change', (msg: any) => {
+            this.isRemotePlayback = true;
+            if (msg.action === 'play') {
+                this.player.play();
+            } else if (msg.action === 'pause') {
+                this.player.pause();
+                if (typeof msg.frame === 'number') {
+                    this.player.seekToFrame(msg.frame);
+                }
+            } else if (msg.action === 'seek') {
+                if (typeof msg.frame === 'number') {
+                    this.player.seekToFrame(msg.frame);
+                }
+            }
+            setTimeout(() => {
+                this.isRemotePlayback = false;
+            }, 50);
+        });
+
+        // 1.5 Sync Initial State on Connection (Host only)
+        this.sync.on('connection:open', (peerId: string) => {
+            if (this.sync.isHostUser) {
+                const state = this.store.getState();
+                const currentFrame = Math.round(state.currentTime * state.fps); // Use computed frame
+                // Send current frame
+                this.sync.sendPlaybackToPeer(peerId, 'seek', currentFrame);
+                // Send play/pause state
+                if (state.isPlaying) {
+                    this.sync.sendPlaybackToPeer(peerId, 'play');
+                } else {
+                    this.sync.sendPlaybackToPeer(peerId, 'pause', currentFrame);
+                }
+            }
+        });
+
+        this.videoElement.addEventListener('play', () => {
+            if (!this.isRemotePlayback) {
+                this.sync.sendPlayback('play');
+            }
+        });
+
+        this.videoElement.addEventListener('pause', () => {
+            if (!this.isRemotePlayback) {
+                const frame = this.store.getState().currentFrame;
+                this.sync.sendPlayback('pause', frame);
+            }
+        });
+
+        this.videoElement.addEventListener('seeked', () => {
+            if (!this.isRemotePlayback) {
+                const frame = this.store.getState().currentFrame;
+                this.sync.sendPlayback('seek', frame);
             }
         });
     }
@@ -347,6 +593,6 @@ export class WebMediaAnnotator {
 
 export * from './Store';
 export * from './Player';
-export * from './SyncManager';
+export * from './LinkSync';
 export * from './Renderer';
 export * from './PluginManager';

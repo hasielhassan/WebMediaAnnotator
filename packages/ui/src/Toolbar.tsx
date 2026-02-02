@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand, Clock } from 'lucide-react';
+import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand, Grab, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Popover } from './Popover';
 
@@ -15,8 +15,13 @@ export interface ToolbarProps {
     onColorChange?: (color: string) => void;
     activeStrokeWidth?: number;
     onStrokeWidthChange?: (width: number) => void;
-    activeDuration?: number;
-    onDurationChange?: (duration: number) => void;
+
+    // Duration
+    defaultDuration?: number; // Creation default
+    onDefaultDurationChange?: (duration: number) => void;
+
+    holdDuration?: number; // View toggle
+    onHoldDurationChange?: (duration: number) => void;
 
     // Onion Skin
     isOnionSkinEnabled?: boolean;
@@ -29,13 +34,14 @@ export interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({
     activeTool, onToolSelect, onClear, className, orientation = 'vertical',
     activeColor, onColorChange, activeStrokeWidth, onStrokeWidthChange,
-    activeDuration = 1, onDurationChange,
+    defaultDuration = 1, onDefaultDurationChange,
+    holdDuration = 1, onHoldDurationChange,
     isOnionSkinEnabled, onToggleOnionSkin,
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange
 }) => {
     const tools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
-        { id: 'pan', icon: Hand, label: 'Pan (Hand)' },
+        { id: 'pan', icon: Grab, label: 'Pan (Grab)' },
         { id: 'freehand', icon: Pencil, label: 'Pencil' },
         { id: 'arrow', icon: MoveRight, label: 'Arrow' },
         { id: 'circle', icon: Circle, label: 'Circle' },
@@ -129,6 +135,60 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
             <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />
 
+            {/* Hold Popover (Hand Icon) */}
+            <Popover
+                side={isHorizontal ? "bottom" : "right"}
+                trigger={
+                    <button
+                        title="Toggle Global Hold (Hand)"
+                        className={clsx(
+                            "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                            (holdDuration || 1) > 1 ? "bg-orange-900/50 text-orange-400" : "bg-transparent text-gray-400"
+                        )}
+                    >
+                        <Hand size={20} />
+                        {(holdDuration || 1) > 1 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
+                                {holdDuration}
+                            </span>
+                        )}
+                    </button>
+                }
+                content={
+                    <div className="w-56 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white leading-tight">Global Hold</span>
+                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Force annotations to stay visible longer.</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if ((holdDuration || 1) > 1) {
+                                        onHoldDurationChange?.(1);
+                                    } else {
+                                        onHoldDurationChange?.(24); // Default to 24 frames
+                                    }
+                                }}
+                                className={clsx("w-8 h-4 rounded-full cursor-pointer relative transition-colors border-none outline-none focus:ring-2 ring-gray-600", (holdDuration || 1) > 1 ? "bg-orange-500" : "bg-gray-600")}
+                            >
+                                <div className={clsx("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all shadow-sm", (holdDuration || 1) > 1 ? "left-4.5" : "left-0.5")} />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-1 mt-1">
+                            <span className="text-xs text-orange-300 font-medium">Hold Frames: {holdDuration}</span>
+                            <input
+                                type="range" min="1" max="100" step="1"
+                                value={holdDuration}
+                                onChange={(e) => onHoldDurationChange?.(parseInt(e.target.value))}
+                                className="styled-range w-full h-1 bg-orange-900/50 rounded-lg appearance-none cursor-pointer text-orange-900"
+                            />
+                        </div>
+                    </div>
+                }
+            />
+
             {/* Onion Skin Popover */}
             <Popover
                 side={isHorizontal ? "bottom" : "right"}
@@ -152,9 +212,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     </button>
                 }
                 content={
-                    <div className="w-52 p-2 flex flex-col gap-3">
-                        <div className="flex items-center justify-between pb-2 border-b border-gray-700">
-                            <span className="text-sm font-medium text-white">Ghosting</span>
+                    <div className="w-56 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white leading-tight">Ghosting</span>
+                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">View annotations from past and future.</span>
+                            </div>
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -167,7 +230,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             </button>
                         </div>
 
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1 mt-1">
                             <span className="text-xs text-red-300 font-medium">Past Frames: {localPrevFrames}</span>
                             <input
                                 type="range" min="0" max="10" step="1"
@@ -198,64 +261,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 }
             />
 
-            {/* Duration Popover */}
-            <Popover
-                side={isHorizontal ? "bottom" : "right"}
-                trigger={
-                    <button
-                        title="Annotation Duration (Hold)"
-                        className={clsx(
-                            "p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center w-10 h-10 relative",
-                            activeDuration > 1 ? "bg-orange-900/50 text-orange-400" : "bg-transparent text-gray-400"
-                        )}
-                    >
-                        <Clock size={20} />
-                        {activeDuration > 1 && (
-                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
-                                {activeDuration}
-                            </span>
-                        )}
-                    </button>
-                }
-                content={
-                    <div className="w-52 p-2 flex flex-col gap-3">
-                        <div className="flex items-center justify-between pb-2 border-b border-gray-700">
-                            <span className="text-sm font-medium text-white">Hold Duration</span>
-                            {/* Toggle Reset */}
-                            <button
-                                type="button"
-                                title="Reset to 1 frame"
-                                onClick={() => onDurationChange?.(1)}
-                                className="text-[10px] text-gray-400 hover:text-white underline"
-                            >
-                                Reset
-                            </button>
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between items-baseline">
-                                <span className="text-xs text-orange-300 font-medium">{activeDuration} Frames</span>
-                                <span className="text-[10px] text-gray-500">{(activeDuration / 24).toFixed(1)}s @ 24fps</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="1" max="100"
-                                value={activeDuration}
-                                onChange={(e) => onDurationChange?.(parseInt(e.target.value))}
-                                className="styled-range w-full h-1 bg-orange-900/50 rounded-lg appearance-none cursor-pointer text-orange-600"
-                            />
-                            <div className="flex justify-between mt-1 text-[9px] text-gray-600 font-mono">
-                                <span>1</span>
-                                <span>25</span>
-                                <span>50</span>
-                                <span>75</span>
-                                <span>100</span>
-                            </div>
-                        </div>
-                    </div>
-                }
-            />
-
             <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />
 
             {/* Color Popover */}
@@ -273,8 +278,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     </button>
                 }
                 content={
-                    <div className="flex flex-col gap-2">
-                        <div className="grid grid-cols-4 gap-2">
+                    <div className="w-56 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white leading-tight">Stroke Color</span>
+                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Choose the color for your drawings.</span>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 mt-1">
                             {colors.map(c => (
                                 <button
                                     key={c}
@@ -313,22 +324,81 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     </button>
                 }
                 content={
-                    <div className="w-48">
-                        <span className="text-xs text-gray-400 mb-2 block">Stroke / Text Size: {activeStrokeWidth}px</span>
-                        <input
-                            type="range"
-                            min="1" max="20"
-                            value={activeStrokeWidth}
-                            onChange={(e) => onStrokeWidthChange?.(parseInt(e.target.value))}
-                            className="w-full"
-                        />
+                    <div className="w-56 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white leading-tight">Stroke Size</span>
+                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Adjust line width and text size.</span>
+                            </div>
+                            <button
+                                type="button"
+                                title="Reset to 3px"
+                                onClick={() => onStrokeWidthChange?.(3)}
+                                className="text-[10px] text-gray-400 hover:text-white underline"
+                            >
+                                Reset
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-1 mt-1">
+                            <span className="text-xs text-green-300 font-medium">{activeStrokeWidth}px</span>
+                            <input
+                                type="range"
+                                min="1" max="50"
+                                value={activeStrokeWidth}
+                                onChange={(e) => onStrokeWidthChange?.(parseInt(e.target.value))}
+                                className="styled-range w-full h-1 bg-green-900/50 rounded-lg appearance-none cursor-pointer text-green-600"
+                            />
+                        </div>
                     </div>
                 }
             />
 
+            {/* Default Duration Popover */}
+            <Popover
+                side={isHorizontal ? "bottom" : "right"}
+                trigger={
+                    <button
+                        title="New Annotation Duration"
+                        className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10 bg-transparent text-gray-400"
+                    >
+                        {defaultDuration}fr
+                    </button>
+                }
+                content={
+                    <div className="w-56 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white leading-tight">Native Duration</span>
+                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Initial length for new drawings.</span>
+                            </div>
+                            <button
+                                type="button"
+                                title="Reset to 1 frame"
+                                onClick={() => onDefaultDurationChange?.(1)}
+                                className="text-[10px] text-gray-400 hover:text-white underline"
+                            >
+                                Reset
+                            </button>
+                        </div>
 
+                        <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-xs text-blue-300 font-medium">{defaultDuration} Frames</span>
+                                <span className="text-[10px] text-gray-500">{(defaultDuration / 24).toFixed(1)}s @ 24fps</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="1" max="100"
+                                value={defaultDuration}
+                                onChange={(e) => onDefaultDurationChange?.(parseInt(e.target.value))}
+                                className="styled-range w-full h-1 bg-blue-900/50 rounded-lg appearance-none cursor-pointer text-blue-600"
+                            />
+                        </div>
+                    </div>
+                }
+            />
 
-            {/* Spacer for horizontal layout to push content if needed, or caller handles it */}
             <div className="flex-1" />
 
             {onClear && (

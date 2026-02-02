@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Media Annotator - Static Drop-In Demo</title>
+    <!-- Tailwind CSS (Optional, to verify styling) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #111;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            width: 80%;
+            max-width: 1000px;
+            aspect-ratio: 16/9;
+            border: 1px solid #333;
+        }
+
+        web-media-annotator {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 class="text-2xl font-bold mb-4">Static HTML Example</h1>
+
+    <div class="container">
+        <!-- The Custom Element -->
+        <web-media-annotator src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            fps="24" start-frame="100"></web-media-annotator>
+    </div>
+
+    <p class="mt-4 text-gray-400">
+        Loaded via UMD script tag.
+    </p>
+
+    <!-- Load the UMD bundle -->
+    <!-- In a real scenario, this would be a URL to the CDN or local dist folder -->
+    <!-- Validating relative path from where I put this file -->
+    <script src="./packages/embed/dist/web-media-annotator.umd.js"></script>
+</body>
+
+</html>

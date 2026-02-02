@@ -4,18 +4,18 @@ import { Store } from '../Store';
 export class EraserTool extends BaseTool {
     private isErasing = false;
 
-    onMouseDown(x: number, y: number) {
+    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
         this.isErasing = true;
         this.eraseAt(x, y);
     }
 
-    onMouseMove(x: number, y: number) {
+    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
         if (this.isErasing) {
             this.eraseAt(x, y);
         }
     }
 
-    onMouseUp(x: number, y: number) {
+    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
         if (this.isErasing) {
             this.store.captureSnapshot();
         }

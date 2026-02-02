@@ -10,9 +10,9 @@ export abstract class BaseTool {
         this.store = annotator.store;
     }
 
-    abstract onMouseDown(x: number, y: number, e: MouseEvent): void;
-    abstract onMouseMove(x: number, y: number, e: MouseEvent): void;
-    abstract onMouseUp(x: number, y: number, e: MouseEvent): void;
+    abstract onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent): void;
+    abstract onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent): void;
+    abstract onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent): void;
 
     // Optional
     onKeyDown?(e: KeyboardEvent): void;

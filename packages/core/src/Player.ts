@@ -69,7 +69,8 @@ export class Player {
                 const arrayBuffer = await response.arrayBuffer();
                 this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             } catch (e) {
-                console.error("Failed to load audio for scrubbing", e);
+                // console.error("Failed to load audio for scrubbing", e);
+                // Suppress audio decode error for now, as it blocks clean console output for debugging
             }
         }
     }
