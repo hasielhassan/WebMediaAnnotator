@@ -21,6 +21,7 @@ export class Renderer {
             if (
                 newState.currentFrame !== oldState.currentFrame ||
                 newState.annotations !== oldState.annotations ||
+                newState.selectedAnnotationIds !== oldState.selectedAnnotationIds ||
                 newState.isOnionSkinEnabled !== oldState.isOnionSkinEnabled ||
                 newState.onionSkinPrevFrames !== oldState.onionSkinPrevFrames ||
                 newState.holdDuration !== oldState.holdDuration ||
@@ -108,9 +109,11 @@ export class Renderer {
         this.renderAnnotationsToContext(this.ctx, annotations, this.canvas.width, this.canvas.height);
 
         // Render Selection
-        if (state.selectedAnnotationId) {
-            const selected = annotations.find(a => a.id === state.selectedAnnotationId);
-            if (selected) this.renderSelection(selected, this.canvas.width, this.canvas.height);
+        if (state.selectedAnnotationIds.length > 0) {
+            state.selectedAnnotationIds.forEach(id => {
+                const selected = annotations.find(a => a.id === id);
+                if (selected) this.renderSelection(selected, this.canvas.width, this.canvas.height);
+            });
         }
 
         this.ctx.restore();

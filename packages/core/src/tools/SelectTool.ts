@@ -4,13 +4,13 @@ import { Store, Annotation } from '../Store';
 export class SelectTool extends BaseTool {
     private isDragging = false;
     private startDragPoint: { x: number; y: number } | null = null;
-    private selectedAnnotationId: string | null = null;
-    private initialAnnotationState: Annotation | null = null;
+    private initialAnnotations: Map<string, Annotation> = new Map();
 
     onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
-        // 1. Hit Test
         const frame = this.store.getState().currentFrame;
         const annotations = this.store.getAnnotationsForFrame(frame);
+        const state = this.store.getState();
+        const isMultiSelect = e.ctrlKey || e.metaKey;
 
         let hitId: string | null = null;
 
@@ -23,31 +23,68 @@ export class SelectTool extends BaseTool {
             }
         }
 
-        this.store.setState({ selectedAnnotationId: hitId });
-        this.selectedAnnotationId = hitId;
+        console.log(`[SelectTool] HitTest: ${hitId ? hitId : 'None'}`);
+
+        let nextSelectedIds = [...state.selectedAnnotationIds];
 
         if (hitId) {
+            if (isMultiSelect) {
+                // Toggle selection
+                if (nextSelectedIds.includes(hitId)) {
+                    nextSelectedIds = nextSelectedIds.filter(id => id !== hitId);
+                } else {
+                    nextSelectedIds.push(hitId);
+                }
+            } else {
+                // If the hitId is part of current selection, keep it (to allow dragging group)
+                // Otherwise, switch selection to just this one.
+                if (!nextSelectedIds.includes(hitId)) {
+                    nextSelectedIds = [hitId];
+                }
+            }
+        } else {
+            // Clicked empty space
+            if (!isMultiSelect) {
+                nextSelectedIds = [];
+            }
+        }
+
+        this.store.setState({ selectedAnnotationIds: nextSelectedIds });
+
+        // Start Drag if we hit something that is now selected
+        const isDraggingSelection = hitId && nextSelectedIds.includes(hitId);
+        if (isDraggingSelection) {
             this.isDragging = true;
             this.startDragPoint = { x, y };
-            const ann = annotations.find(a => a.id === hitId);
-            if (ann) this.initialAnnotationState = JSON.parse(JSON.stringify(ann));
+            this.initialAnnotations.clear();
+
+            // Snapshot initial state for all currently selected annotations on this frame
+            nextSelectedIds.forEach(id => {
+                const ann = annotations.find(a => a.id === id);
+                if (ann) {
+                    this.initialAnnotations.set(id, JSON.parse(JSON.stringify(ann)));
+                }
+            });
         }
     }
 
     onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
-        if (!this.isDragging || !this.selectedAnnotationId || !this.startDragPoint || !this.initialAnnotationState) return;
+        if (!this.isDragging || !this.startDragPoint || this.initialAnnotations.size === 0) return;
 
         const dx = x - this.startDragPoint.x;
         const dy = y - this.startDragPoint.y;
 
-        // Apply delta to points
-        if (this.initialAnnotationState.points) {
-            const newPoints = this.initialAnnotationState.points.map(p => ({
-                x: p.x + dx,
-                y: p.y + dy
-            }));
-            this.store.updateAnnotation(this.selectedAnnotationId, { points: newPoints });
-        }
+        // Apply delta to all dragged annotations
+        this.initialAnnotations.forEach((initialAnn, id) => {
+            if (initialAnn.points) {
+                const newPoints = initialAnn.points.map(p => ({
+                    ...p,
+                    x: p.x + dx,
+                    y: p.y + dy
+                }));
+                this.store.updateAnnotation(id, { points: newPoints });
+            }
+        });
     }
 
     onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
@@ -56,7 +93,7 @@ export class SelectTool extends BaseTool {
         }
         this.isDragging = false;
         this.startDragPoint = null;
-        this.initialAnnotationState = null;
+        this.initialAnnotations.clear();
     }
 
     private hitTest(ann: Annotation, x: number, y: number): boolean {
@@ -98,7 +135,7 @@ export class SelectTool extends BaseTool {
         }
 
         // 3. Exact Shape Test
-        if (ann.type === 'freehand' || ann.type === 'arrow' || ann.points.length > 2) {
+        if (ann.type === 'freehand' || ann.points.length > 2) {
             // Distance to polyline sequences
             for (let i = 0; i < ann.points.length - 1; i++) {
                 const p1 = ann.points[i];
@@ -109,7 +146,27 @@ export class SelectTool extends BaseTool {
             return false;
         }
 
-        // Square/Circle (Bounding box check passed, so true)
+        if (ann.type === 'arrow' && ann.points.length === 2) {
+            const p1 = ann.points[0];
+            const p2 = ann.points[1];
+            return this.distToSegment(x, y, p1.x, p1.y, p2.x, p2.y) <= THRESHOLD;
+        }
+
+        if (ann.type === 'circle' && ann.points.length === 2) {
+            const p1 = ann.points[0];
+            const p2 = ann.points[1];
+            const cx = (p1.x + p2.x) / 2;
+            const cy = (p1.y + p2.y) / 2;
+            const rx = Math.abs(p2.x - p1.x) / 2;
+            const ry = Math.abs(p2.y - p1.y) / 2;
+
+            // Normalized distance (Ellipse equation: (x-cx)^2/rx^2 + (y-cy)^2/ry^2 <= 1)
+            const dx = (x - cx) / (rx + THRESHOLD);
+            const dy = (y - cy) / (ry + THRESHOLD);
+            return (dx * dx + dy * dy) <= 1;
+        }
+
+        // Square/Standard (Bounding box check passed, so true)
         return true;
     }
 

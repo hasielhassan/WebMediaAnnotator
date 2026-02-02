@@ -1,4 +1,4 @@
-import { Store, AppState } from './Store';
+import { Store, AppState, Annotation } from './Store';
 import { Player } from './Player';
 import { LinkSync } from './LinkSync';
 import { Renderer } from './Renderer';
@@ -31,7 +31,7 @@ export class WebMediaAnnotator {
     private previousTool: string | null = null;
     private isRemotePlayback = false; // Mutex for playback sync
     private isRemoteSessionUpdate = false; // Mutex for session params sync
-    private clipboard: any = null;
+    private clipboard: Annotation[] = [];
 
     constructor(container: HTMLElement, options: {
         videoSrc?: string;
@@ -112,6 +112,13 @@ export class WebMediaAnnotator {
         this.initShortcuts();
         this.initResizeObserver();
         this.initSyncBinding();
+
+        // 5. Global Deselection (Click on background bars)
+        this.container.addEventListener('pointerdown', (e) => {
+            if (e.target === this.container) {
+                this.store.setState({ selectedAnnotationIds: [] });
+            }
+        });
     }
 
     private initInteraction() {
@@ -259,24 +266,56 @@ export class WebMediaAnnotator {
                     return;
                 }
                 if (e.key === 'c') {
-                    const selId = this.store.getState().selectedAnnotationId;
-                    if (selId) {
-                        const ann = this.store.getState().annotations.find(a => a.id === selId);
-                        if (ann) this.clipboard = JSON.parse(JSON.stringify(ann));
+                    const state = this.store.getState();
+                    const selIds = state.selectedAnnotationIds;
+
+                    if (selIds.length > 0) {
+                        // 1. Copy selected
+                        const selectedAnns = state.annotations.filter(a => selIds.includes(a.id));
+                        if (selectedAnns.length > 0) {
+                            this.clipboard = JSON.parse(JSON.stringify(selectedAnns));
+                            console.log(`[Clipboard] Copied ${selectedAnns.length} selected annotations.`);
+                        }
+                    } else {
+                        // 2. Copy all anchored on this frame
+                        const frameAnns = state.annotations.filter(a => a.frame === state.currentFrame);
+                        if (frameAnns.length > 0) {
+                            this.clipboard = JSON.parse(JSON.stringify(frameAnns));
+                            console.log(`[Clipboard] Copied ${frameAnns.length} annotations from frame ${state.currentFrame}.`);
+                        }
                     }
                     return;
                 }
                 if (e.key === 'v') {
-                    if (this.clipboard) {
-                        const newAnn = JSON.parse(JSON.stringify(this.clipboard));
-                        newAnn.id = crypto.randomUUID();
-                        newAnn.frame = this.store.getState().currentFrame;
-                        // Offset
-                        if (newAnn.points) {
-                            newAnn.points = newAnn.points.map((p: any) => ({ x: p.x + 0.02, y: p.y + 0.02 }));
-                        }
-                        this.store.addAnnotation(newAnn);
-                        this.store.setState({ selectedAnnotationId: newAnn.id });
+                    if (this.clipboard && this.clipboard.length > 0) {
+                        const currentFrame = this.store.getState().currentFrame;
+                        const addedIds: string[] = [];
+
+                        this.clipboard.forEach(template => {
+                            const newAnn = JSON.parse(JSON.stringify(template));
+                            newAnn.id = crypto.randomUUID();
+                            newAnn.frame = currentFrame;
+
+                            // Apply offset if pasting on the SAME frame as original source
+                            if (template.frame === currentFrame) {
+                                if (newAnn.points) {
+                                    newAnn.points = newAnn.points.map((p: any) => ({
+                                        ...p,
+                                        x: p.x + 0.02,
+                                        y: p.y + 0.02
+                                    }));
+                                }
+                            }
+
+                            this.store.addAnnotation(newAnn);
+                            addedIds.push(newAnn.id);
+                        });
+
+                        // Select the newly added ones
+                        this.store.setState({ selectedAnnotationIds: addedIds });
+
+                        this.store.captureSnapshot();
+                        console.log(`[Clipboard] Pasted ${addedIds.length} annotations.`);
                     }
                     return;
                 }
@@ -294,6 +333,21 @@ export class WebMediaAnnotator {
             }
 
             switch (e.key.toLowerCase()) {
+                // Toggles & Selection
+                case 'escape':
+                    this.store.setState({ selectedAnnotationIds: [], activeTool: 'select' });
+                    break;
+
+                case 'delete':
+                case 'backspace':
+                    const selIds = this.store.getState().selectedAnnotationIds;
+                    if (selIds.length > 0) {
+                        selIds.forEach(id => this.store.deleteAnnotation(id));
+                        this.store.setState({ selectedAnnotationIds: [] });
+                        this.store.captureSnapshot();
+                    }
+                    break;
+
                 // Playback
                 case ' ': // Spacebar
                     e.preventDefault();
@@ -316,12 +370,12 @@ export class WebMediaAnnotator {
 
                 // Tools
                 case 's': this.store.setState({ activeTool: 'select' }); break;
-                case 'p': this.store.setState({ activeTool: 'freehand' }); break;
-                case 'a': this.store.setState({ activeTool: 'arrow' }); break;
-                case 'c': this.store.setState({ activeTool: 'circle' }); break;
-                case 'q': this.store.setState({ activeTool: 'square' }); break;
-                case 't': this.store.setState({ activeTool: 'text' }); break;
-                case 'e': this.store.setState({ activeTool: 'eraser' }); break;
+                case 'p': this.store.setState({ activeTool: 'freehand', selectedAnnotationIds: [] }); break;
+                case 'a': this.store.setState({ activeTool: 'arrow', selectedAnnotationIds: [] }); break;
+                case 'c': this.store.setState({ activeTool: 'circle', selectedAnnotationIds: [] }); break;
+                case 'q': this.store.setState({ activeTool: 'square', selectedAnnotationIds: [] }); break;
+                case 't': this.store.setState({ activeTool: 'text', selectedAnnotationIds: [] }); break;
+                case 'e': this.store.setState({ activeTool: 'eraser', selectedAnnotationIds: [] }); break;
 
                 // Toggles
                 case 'g':

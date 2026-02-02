@@ -33,7 +33,7 @@ export interface AppState {
 
     // Annotation State
     annotations: Annotation[];
-    selectedAnnotationId: string | null;
+    selectedAnnotationIds: string[];
 
     // Editor State
     activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan';
@@ -62,7 +62,7 @@ export const DEFAULT_STATE: AppState = {
     volume: 1,
     startFrame: 0,
     annotations: [],
-    selectedAnnotationId: null,
+    selectedAnnotationIds: [],
     activeTool: 'select',
     activeColor: '#FF0000',
     activeStrokeWidth: 3,

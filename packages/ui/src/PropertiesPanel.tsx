@@ -67,11 +67,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div className="h-px bg-gray-800" />
 
             {/* Selected Annotation Info */}
-            {state.selectedAnnotationId && (
+            {state.selectedAnnotationIds.length > 0 && (
                 <div className="bg-gray-800 p-2 rounded">
                     <span className="text-xs text-gray-400 block mb-1">Selection</span>
                     <div className="text-xs break-all font-mono opacity-70">
-                        ID: {state.selectedAnnotationId.slice(0, 8)}...
+                        {state.selectedAnnotationIds.length === 1
+                            ? `ID: ${state.selectedAnnotationIds[0].slice(0, 8)}...`
+                            : `${state.selectedAnnotationIds.length} items selected`}
                     </div>
                 </div>
             )}

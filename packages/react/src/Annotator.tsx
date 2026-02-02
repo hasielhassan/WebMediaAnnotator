@@ -54,7 +54,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     }, [src, fps, startFrame]);
 
     // Handlers
-    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as any });
+    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as any, selectedAnnotationIds: [] });
     const handleColorChange = (color: string) => annotatorRef.current?.store.setState({ activeColor: color });
     const handleWidthChange = (width: number) => annotatorRef.current?.store.setState({ activeStrokeWidth: width });
 
@@ -176,6 +176,9 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                     <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
                                     <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
                                     <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
+                                    <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
+                                    <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
+                                    <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
 
                                     <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
                                     <span>Select</span> <span className="font-mono text-gray-500">S</span>
