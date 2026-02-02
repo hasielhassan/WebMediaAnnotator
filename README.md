@@ -20,9 +20,12 @@ The ultimate goal is to create a professional-grade, browser-based media annotat
 ### 🎨 Annotation Tools
 - **Vector Shapes**: Draw Squares, Circles, Arrows, and Freehand lines.
 - **Text Support**: Add text labels directly onto frames.
-- **Selection & Editing**: Select, move, and modify existing annotations.
-- **Undo/Redo**: Robust history support for all actions.
+- **Selection & Editing**: 
+    - **Multi-Select**: Hold `Ctrl`/`Cmd` + Click to select multiple items.
+    - **Multi-Drag**: Move entire selection groups at once.
+- **Undo/Redo**: Robust history support for all actions (synced in collaborative sessions).
 - **Color Picking**: EyeDropper tool to sample colors from the video.
+- **Delete Shortcuts**: Quickly remove selection with `Delete` or `Backspace`.
 
 ### 🎥 Playback & Navigation
 - **Frame-Accurate Scrubbing**: Navigate video frame-by-frame.
@@ -40,37 +43,33 @@ The ultimate goal is to create a professional-grade, browser-based media annotat
     - Navigation: `Space` (Play/Pause), Arrows (Frame step), `Ctrl`+Arrows (Jump to annotation).
     - View: `R` (Reset Zoom/Pan).
     - History: `Ctrl+Z` (Undo), `Ctrl+Y` (Redo).
-- **UI**: Consolidated "Export" menu for cleaner interface and integrated Shortcuts cheat sheet.
+    - Edit: `Ctrl+C` (Copy), `Ctrl+V` (Paste), `Del`/`Backspace` (Delete).
+- **UI**: 
+    - **Unified Sidebar**: Properties and information accessible in a slide-out drawer.
+    - **Shortcuts Modal**: Instant help reference accessible from the toolbar.
 
 ### 💾 Import & Export
-- **Export to Image**: Download the current frame with all annotations "burned in" as a high-quality PNG.
-- **State Management**: Centralized store with complete state persistence.
+- **Frame Export**: Download current frame (Clean or Burned In) as PNG.
+- **Bulk Export (ZIP)**: Download all annotated frames as a ZIP archive (Clean or Burned In) with progress tracking.
+- **Data Portability**: Download/Import annotation data as standard JSON.
+- **State Management**: Centralized store with complete state persistence and SNAPSHOT history.
+
+### 🤝 Real-Time Collaboration
+- **P2P Sync**: Host or Join sessions via WebRTC (PeerJS).
+- **Shared State**: Real-time synchronization of annotations, onion skin settings, and playback state via Yjs.
+- **Dynamic Updates**: Collaborative undo/redo that respects remote changes.
 
 ## 🚧 Roadmap (Pending)
 
-### ⏳ Annotation Duration (Hold)
-- **Goal**: Allow an annotation to persist for a specific duration or range of frames.
-- **Planned UI**: "Hold" input field in the toolbar (e.g., "Hold for 5 frames" or "Until Frame X").
-- **Logic**: Update Renderer to check frame ranges instead of single-frame strict equality.
-
-### 🖼️ Single Image Preview (Future)
-- **Goal**: Support static image annotation without the video player overhead.
-- **Utility**: Marking up screenshots, design assets, or photography.
-
 ### 🧊 Simple 3D Viewer (Long Term)
 - **Goal**: Support basic 3D model annotation (OBJ/GLB).
-- **Utility**: Annotating 3D assets for game development or product visualization (drawing on 2D screen space projected onto the model).
+- **Utility**: Annotating 3D assets for game development or product visualization.
 
 ### 🎵 Audio Visuals
 - **Goal**: Visualize the audio waveform in the timeline.
 
-### 📦 Advanced Export
-- **Goal**: Export annotation data as a standardized JSON format.
-- **Utility**: Allowing re-importing of samples or integration with backend systems.
-
 ### 🛠 Plugins & API
-- **Goal**: Finalize the Plugin API.
-- **Utility**: Allow third-party developers to create custom tools (e.g., "marching ants" selection, AI-assisted segmentation) without forking the core.
+- **Goal**: Finalize the Plugin API for custom tool creation.
 
 ## 🏗 Architecture
 
