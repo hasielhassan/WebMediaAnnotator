@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { WebMediaAnnotator, AppState } from '@web-media-annotator/core';
-import { Toolbar, Popover } from '@web-media-annotator/ui';
-import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info } from 'lucide-react';
+import { Toolbar, Popover, ExportProgress } from '@web-media-annotator/ui';
+import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { Player } from '@web-media-annotator/core';
 import { SyncPanel } from './SyncPanel';
 
@@ -25,6 +25,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     const annotatorRef = useRef<WebMediaAnnotator | null>(null);
     const [state, setState] = useState<AppState | null>(null);
     const [useTimecode, setUseTimecode] = useState(false);
+    const [exportProgress, setExportProgress] = useState<{ current: number, total: number } | null>(null);
 
     useImperativeHandle(ref, () => ({
         getInstance: () => annotatorRef.current
@@ -71,6 +72,26 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         a.href = dataUrl;
         a.download = `frame_${state?.currentFrame}_${composite ? 'comp' : 'anno'}.png`;
         a.click();
+    };
+
+    const handleBulkExport = async (composite: boolean) => {
+        if (!annotatorRef.current) return;
+        try {
+            const blob = await annotatorRef.current.exportAnnotatedFrames(composite, (current, total) => {
+                setExportProgress({ current, total });
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `annotations_export_${composite ? 'burned' : 'clean'}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err: any) {
+            console.error("Export failed", err);
+            alert("Export failed: " + err.message);
+        } finally {
+            setExportProgress(null);
+        }
     };
 
     const handleSave = () => {
@@ -299,6 +320,26 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                     <ImageIcon size={16} className="text-green-400" />
                                     Current Frame (Burned In)
                                 </button>
+
+                                <div className="h-px bg-gray-700 my-1" />
+
+                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Bulk Export (ZIP)
+                                </div>
+                                <button
+                                    onClick={() => handleBulkExport(false)}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left"
+                                >
+                                    <Files size={16} className="text-blue-400" />
+                                    All Annotated (Clean)
+                                </button>
+                                <button
+                                    onClick={() => handleBulkExport(true)}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left"
+                                >
+                                    <FolderDown size={16} className="text-green-400" />
+                                    All Annotated (Burned In)
+                                </button>
                             </div>
                         }
                     />
@@ -467,6 +508,15 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     </button>
                 </div>
             </div>
+
+            {/* Export Progress Overlay */}
+            {exportProgress && (
+                <ExportProgress
+                    current={exportProgress.current}
+                    total={exportProgress.total}
+                    title="Exporting Annotated Frames"
+                />
+            )}
         </div>
     );
 });

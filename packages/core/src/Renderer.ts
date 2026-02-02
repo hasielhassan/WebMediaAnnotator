@@ -123,7 +123,8 @@ export class Renderer {
         type?: 'image/png' | 'image/jpeg',
         quality?: number,
         composite?: boolean,
-        videoElement?: HTMLVideoElement
+        videoElement?: HTMLVideoElement,
+        frame?: number // Optional specific frame to capture
     } = {}): Promise<string> {
         const type = options.type || 'image/png';
         const quality = options.quality || 1.0;
@@ -151,7 +152,8 @@ export class Renderer {
 
         // Render Annotations to this new context
         const state = this.store.getState();
-        const currentAnnotations = this.store.getAnnotationsForFrame(state.currentFrame);
+        const targetFrame = options.frame !== undefined ? options.frame : state.currentFrame;
+        const currentAnnotations = this.store.getAnnotationsForFrame(targetFrame);
 
         this.renderAnnotationsToContext(ctx, currentAnnotations, width, height);
 

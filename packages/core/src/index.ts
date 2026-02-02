@@ -11,6 +11,7 @@ import { TextTool } from './tools/TextTool';
 import { EraserTool } from './tools/EraserTool';
 import { EyeDropperTool } from './tools/EyeDropperTool';
 import { PanTool } from './tools/PanTool';
+import JSZip from 'jszip';
 
 export class WebMediaAnnotator {
     public store: Store;
@@ -636,6 +637,50 @@ export class WebMediaAnnotator {
         // Update Renderer Resolution
         // We set the internal canvas buffer size to match the Display size 1:1 for sharpness
         this.renderer.resize(finalW, finalH);
+    }
+
+    async exportAnnotatedFrames(composite: boolean, onProgress: (current: number, total: number) => void): Promise<Blob> {
+        const state = this.store.getState();
+        const annotatedFrames = Array.from(new Set(state.annotations.map(a => a.frame))).sort((a, b) => a - b);
+        const total = annotatedFrames.length;
+
+        if (total === 0) throw new Error("No annotations found to export");
+
+        const zip = new JSZip();
+
+        for (let i = 0; i < total; i++) {
+            const frame = annotatedFrames[i];
+
+            if (composite) {
+                // Seek to frame
+                const fps = state.fps;
+                const time = frame / fps;
+
+                await new Promise<void>((resolve) => {
+                    const onSeeked = () => {
+                        this.videoElement.removeEventListener('seeked', onSeeked);
+                        resolve();
+                    };
+                    this.videoElement.addEventListener('seeked', onSeeked);
+                    this.videoElement.currentTime = time;
+                });
+            }
+
+            const dataUrl = await this.renderer.captureFrame({
+                composite,
+                frame,
+                type: 'image/png'
+            });
+
+            // Strip header: data:image/png;base64,
+            const base64Data = dataUrl.split(',')[1];
+            zip.file(`frame_${frame.toString().padStart(5, '0')}.png`, base64Data, { base64: true });
+
+            onProgress(i + 1, total);
+        }
+
+        // Generate final zip blob
+        return await zip.generateAsync({ type: 'blob' });
     }
 
     destroy() {

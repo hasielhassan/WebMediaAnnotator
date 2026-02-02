@@ -11,11 +11,13 @@
     },
     "dependencies": {
         "eventemitter3": "^5.0.0",
+        "jszip": "^3.10.1",
         "peerjs": "^1.5.5",
         "uuid": "^9.0.0",
         "yjs": "^13.6.29"
     },
     "devDependencies": {
+        "@types/jszip": "^3.4.0",
         "@types/uuid": "^9.0.0",
         "vitest": "^0.34.0"
     }
