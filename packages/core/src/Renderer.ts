@@ -211,9 +211,39 @@ export class Renderer {
 
             if (annotation.type === 'freehand' && annotation.points) {
                 if (annotation.points.length > 0) {
-                    ctx.moveTo(annotation.points[0].x * width, annotation.points[0].y * height);
-                    for (let i = 1; i < annotation.points.length; i++) {
-                        ctx.lineTo(annotation.points[i].x * width, annotation.points[i].y * height);
+                    // Variable width rendering for freehand
+                    // We draw segment by segment to adjust lineWidth
+                    const points = annotation.points;
+
+                    // First point
+                    let p1 = points[0];
+                    let radius1 = (annotation.style.width / 2) * scaleFactor * (p1.p !== undefined ? p1.p * 2 : 1);
+
+                    for (let i = 1; i < points.length; i++) {
+                        const p2 = points[i];
+                        const radius2 = (annotation.style.width / 2) * scaleFactor * (p2.p !== undefined ? p2.p * 2 : 1);
+
+                        const cx = (p1.x + p2.x) / 2 * width;
+                        const cy = (p1.y + p2.y) / 2 * height;
+
+                        // We use the average pressure for the segment or interpolation?
+                        // Simple approach: each segment has its own width. 
+                        // Better: trapezoids or many small lines.
+                        // Standard canvas approach for variable width lines is complex.
+                        // "Poor man's" variable width: draw lots of circles or short thick lines.
+
+                        // Let's try drawing a line segment with the average width
+                        ctx.beginPath();
+                        ctx.lineWidth = (radius1 + radius2); // diameter approx
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.moveTo(p1.x * width, p1.y * height);
+                        ctx.lineTo(p2.x * width, p2.y * height);
+                        ctx.stroke();
+
+                        // Advance
+                        p1 = p2;
+                        radius1 = radius2;
                     }
                 }
             } else if (annotation.type === 'square' && annotation.points && annotation.points.length >= 2) {

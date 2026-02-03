@@ -8,7 +8,22 @@ export class FreehandTool extends BaseTool {
 
     onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
         this.isDrawing = true;
-        const p = (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5;
+        this.isDrawing = true;
+        let p = 0.5;
+
+        if (e instanceof PointerEvent) {
+            if (e.pressure > 0 && e.pressure !== 0.5) {
+                // Native pressure (Pen/Tablet)
+                p = e.pressure;
+            } else if (e.pointerType === 'touch' && (e.width > 1 || e.height > 1)) {
+                // Simulated pressure from Touch Area
+                // Typical touch contact is 10-40px. We map 10px -> 0.2, 40px -> 1.0
+                // Using max(width, height) to catch the largest dimension
+                const size = Math.max(e.width, e.height);
+                p = Math.min(1, Math.max(0.2, size / 30));
+            }
+        }
+
         this.currentPoints = [{ x, y, p }];
 
         // Create a temporary annotation to visualize drawing
@@ -28,7 +43,17 @@ export class FreehandTool extends BaseTool {
 
     onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
         if (!this.isDrawing) return;
-        const p = (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5;
+        let p = 0.5;
+
+        if (e instanceof PointerEvent) {
+            if (e.pressure > 0 && e.pressure !== 0.5) {
+                p = e.pressure;
+            } else if (e.pointerType === 'touch' && (e.width > 1 || e.height > 1)) {
+                const size = Math.max(e.width, e.height);
+                p = Math.min(1, Math.max(0.2, size / 30));
+            }
+        }
+
         this.currentPoints.push({ x, y, p });
         // Update temp annotation
         this.store.updateAnnotation('temp_drawing', { points: this.currentPoints });
