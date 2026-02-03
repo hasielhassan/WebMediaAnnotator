@@ -7,6 +7,14 @@
     <title>Web Media Annotator - Static Drop-In Demo</title>
     <!-- Tailwind CSS (Optional, to verify styling) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure COOP/COEP to be less strict for external resources (if browser supports it)
+        window.coi = {
+            coepCredentialless: () => true,
+            shouldRegister: () => true
+        };
+    </script>
+    <script src="coi-serviceworker.js"></script>
     <style>
         body {
             background: #111;
@@ -40,7 +48,7 @@
     <div class="container">
         <!-- The Custom Element -->
         <web-media-annotator src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-            fps="24" start-frame="100"></web-media-annotator>
+            fps="24" start-frame="100" preload="force-download"></web-media-annotator>
     </div>
 
     <p class="mt-4 text-gray-400">

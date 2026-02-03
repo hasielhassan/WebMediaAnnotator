@@ -29,6 +29,9 @@ export interface ToolbarProps {
     onionSkinPrevFrames?: number;
     onionSkinNextFrames?: number;
     onOnionSkinSettingsChange?: (prev: number, next: number) => void;
+
+    // Mode
+    isImageMode?: boolean;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -37,7 +40,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     defaultDuration = 1, onDefaultDurationChange,
     holdDuration = 1, onHoldDurationChange,
     isOnionSkinEnabled, onToggleOnionSkin,
-    onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange
+    onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange,
+    isImageMode = false
 }) => {
     const tools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
@@ -190,76 +194,78 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             />
 
             {/* Onion Skin Popover */}
-            <Popover
-                side={isHorizontal ? "bottom" : "right"}
-                isOpen={isGhostingOpen}
-                onOpenChange={setIsGhostingOpen}
-                trigger={
-                    <button
-                        title="Onion Skin (Ghosting)"
-                        className={clsx(
-                            "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
-                            isOnionSkinEnabled ? "bg-purple-600 hover:bg-purple-500" : "bg-transparent"
-                        )}
-                    >
-                        <Ghost size={20} />
-                        {isOnionSkinEnabled && (
-                            <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                            </span>
-                        )}
-                    </button>
-                }
-                content={
-                    <div className="w-56 p-2 flex flex-col gap-2">
-                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-medium text-white leading-tight">Ghosting</span>
-                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">View annotations from past and future.</span>
+            {!isImageMode && (
+                <Popover
+                    side={isHorizontal ? "bottom" : "right"}
+                    isOpen={isGhostingOpen}
+                    onOpenChange={setIsGhostingOpen}
+                    trigger={
+                        <button
+                            title="Onion Skin (Ghosting)"
+                            className={clsx(
+                                "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                                isOnionSkinEnabled ? "bg-purple-600 hover:bg-purple-500" : "bg-transparent"
+                            )}
+                        >
+                            <Ghost size={20} />
+                            {isOnionSkinEnabled && (
+                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                            )}
+                        </button>
+                    }
+                    content={
+                        <div className="w-56 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-white leading-tight">Ghosting</span>
+                                    <span className="text-[10px] text-gray-500 leading-tight mt-0.5">View annotations from past and future.</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleOnionSkin?.();
+                                    }}
+                                    className={clsx("w-8 h-4 rounded-full cursor-pointer relative transition-colors border-none outline-none focus:ring-2 ring-gray-600", isOnionSkinEnabled ? "bg-green-500" : "bg-gray-600")}
+                                >
+                                    <div className={clsx("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all shadow-sm", isOnionSkinEnabled ? "left-4.5" : "left-0.5")} />
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleOnionSkin?.();
-                                }}
-                                className={clsx("w-8 h-4 rounded-full cursor-pointer relative transition-colors border-none outline-none focus:ring-2 ring-gray-600", isOnionSkinEnabled ? "bg-green-500" : "bg-gray-600")}
-                            >
-                                <div className={clsx("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all shadow-sm", isOnionSkinEnabled ? "left-4.5" : "left-0.5")} />
-                            </button>
-                        </div>
 
-                        <div className="flex flex-col gap-1 mt-1">
-                            <span className="text-xs text-red-300 font-medium">Past Frames: {localPrevFrames}</span>
-                            <input
-                                type="range" min="0" max="10" step="1"
-                                value={localPrevFrames}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                    setLocalPrevFrames(parseInt(e.target.value));
-                                }}
-                                className="styled-range w-full h-1 bg-red-900/50 rounded-lg appearance-none cursor-pointer text-red-900"
-                            />
-                        </div>
+                            <div className="flex flex-col gap-1 mt-1">
+                                <span className="text-xs text-red-300 font-medium">Past Frames: {localPrevFrames}</span>
+                                <input
+                                    type="range" min="0" max="10" step="1"
+                                    value={localPrevFrames}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                        setLocalPrevFrames(parseInt(e.target.value));
+                                    }}
+                                    className="styled-range w-full h-1 bg-red-900/50 rounded-lg appearance-none cursor-pointer text-red-900"
+                                />
+                            </div>
 
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs text-green-300 font-medium">Future Frames: {localNextFrames}</span>
-                            <input
-                                type="range" min="0" max="10" step="1"
-                                value={localNextFrames}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                    setLocalNextFrames(parseInt(e.target.value));
-                                }}
-                                className="styled-range w-full h-1 bg-green-900/50 rounded-lg appearance-none cursor-pointer text-green-900"
-                            />
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-green-300 font-medium">Future Frames: {localNextFrames}</span>
+                                <input
+                                    type="range" min="0" max="10" step="1"
+                                    value={localNextFrames}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                        setLocalNextFrames(parseInt(e.target.value));
+                                    }}
+                                    className="styled-range w-full h-1 bg-green-900/50 rounded-lg appearance-none cursor-pointer text-green-900"
+                                />
+                            </div>
                         </div>
-                    </div>
-                }
-            />
+                    }
+                />
+            )}
 
             <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />
 
@@ -355,49 +361,51 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             />
 
             {/* Default Duration Popover */}
-            <Popover
-                side={isHorizontal ? "bottom" : "right"}
-                trigger={
-                    <button
-                        title="New Annotation Duration"
-                        className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10 bg-transparent text-gray-400"
-                    >
-                        {defaultDuration}fr
-                    </button>
-                }
-                content={
-                    <div className="w-56 p-2 flex flex-col gap-2">
-                        <div className="flex items-center justify-between pb-1 border-b border-gray-700">
-                            <div className="flex flex-col">
-                                <span className="text-sm font-medium text-white leading-tight">Native Duration</span>
-                                <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Initial length for new drawings.</span>
+            {!isImageMode && (
+                <Popover
+                    side={isHorizontal ? "bottom" : "right"}
+                    trigger={
+                        <button
+                            title="New Annotation Duration"
+                            className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10 bg-transparent text-gray-400"
+                        >
+                            {defaultDuration}fr
+                        </button>
+                    }
+                    content={
+                        <div className="w-56 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between pb-1 border-b border-gray-700">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-white leading-tight">Native Duration</span>
+                                    <span className="text-[10px] text-gray-500 leading-tight mt-0.5">Initial length for new drawings.</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    title="Reset to 1 frame"
+                                    onClick={() => onDefaultDurationChange?.(1)}
+                                    className="text-[10px] text-gray-400 hover:text-white underline"
+                                >
+                                    Reset
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                title="Reset to 1 frame"
-                                onClick={() => onDefaultDurationChange?.(1)}
-                                className="text-[10px] text-gray-400 hover:text-white underline"
-                            >
-                                Reset
-                            </button>
-                        </div>
 
-                        <div className="flex flex-col gap-1 mt-1">
-                            <div className="flex justify-between items-baseline">
-                                <span className="text-xs text-blue-300 font-medium">{defaultDuration} Frames</span>
-                                <span className="text-[10px] text-gray-500">{(defaultDuration / 24).toFixed(1)}s @ 24fps</span>
+                            <div className="flex flex-col gap-1 mt-1">
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-xs text-blue-300 font-medium">{defaultDuration} Frames</span>
+                                    <span className="text-[10px] text-gray-500">{(defaultDuration / 24).toFixed(1)}s @ 24fps</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="1" max="100"
+                                    value={defaultDuration}
+                                    onChange={(e) => onDefaultDurationChange?.(parseInt(e.target.value))}
+                                    className="styled-range w-full h-1 bg-blue-900/50 rounded-lg appearance-none cursor-pointer text-blue-600"
+                                />
                             </div>
-                            <input
-                                type="range"
-                                min="1" max="100"
-                                value={defaultDuration}
-                                onChange={(e) => onDefaultDurationChange?.(parseInt(e.target.value))}
-                                className="styled-range w-full h-1 bg-blue-900/50 rounded-lg appearance-none cursor-pointer text-blue-600"
-                            />
                         </div>
-                    </div>
-                }
-            />
+                    }
+                />
+            )}
 
             <div className="flex-1" />
 

@@ -10,7 +10,13 @@
         "lint": "eslint src --ext .ts"
     },
     "dependencies": {
+        "@ffmpeg/core": "^0.12.6",
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
+        "ag-psd": "^30.1.0",
         "eventemitter3": "^5.0.0",
+        "gifuct-js": "^2.1.2",
+        "heic2any": "^0.0.4",
         "jszip": "^3.10.1",
         "peerjs": "^1.5.5",
         "uuid": "^9.0.0",

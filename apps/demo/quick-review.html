@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Media Annotator - Quick Review</title>
+    <script src="coi-serviceworker.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -91,7 +92,7 @@
 
     </main>
 
-    <input type="file" id="file-input" class="hidden" accept="video/*,image/*">
+    <input type="file" id="file-input" class="hidden" accept="video/*,image/*,.mkv,.avi,.mov,.heic,.psd">
 
     <!-- Script Logic -->
     <script>
@@ -127,17 +128,70 @@
             }
         });
 
-        function loadFile(file) {
-            const url = URL.createObjectURL(file);
-
+        async function loadFile(file) {
+            console.log("Loading file:", file.name);
             // Hide drop zone, show annotator container
             dropZone.classList.add('hidden');
             annotatorContainer.classList.remove('hidden');
 
-            // Set source
-            annotator.setAttribute('src', url);
-            // Optional: Try to guess FPS or default to 24
-            annotator.setAttribute('fps', '24');
+            // Wait for instance if needed (simple polling)
+            let instance = annotator.instance;
+            let attempts = 0;
+            console.log("Waiting for annotator instance...");
+            while (!instance) {
+                if (attempts > 50) { // 5 seconds
+                    console.error("Timeout waiting for annotator instance");
+                    alert("Timeout: Annotator failed to initialize.");
+                    return;
+                }
+                await new Promise(r => setTimeout(r, 100));
+                instance = annotator.instance;
+                attempts++;
+            }
+            console.log("Instance found!", instance);
+
+            // Use new Media Loader
+            try {
+                // Show a simple loading indicator in the drop zone area? 
+                // Actually, the Annotator handles its own loading overlay now, but we need to trigger it.
+                // Does 'loadMedia' progress callback trigger the internal REACT state?
+                // NO. The React state is inside Annotator.tsx 'handleLoad'.
+                // If we call 'instance.loadMedia' directly from outside (here), the React component DOES NOT KNOW about isLoading state unless we expose a way to set it.
+                // However, we can implement a simple overlay HERE in vanilla JS since this is a demo page.
+
+                // Show loading overlay
+                dropZone.classList.remove('hidden');
+                dropZone.classList.add('z-50', 'bg-black/80'); // Ensure it's on top and semi-transparent background
+
+                dropZone.innerHTML = `
+                    <div class="text-white text-center w-64">
+                        <div class="text-xl mb-4 font-bold">Transcoding Media...</div>
+                        <div class="text-sm text-gray-400 mb-2">This may take a moment for large files</div>
+                        <div class="w-full bg-gray-700 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+                            <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <div id="progress-text" class="mt-2 text-sm text-gray-300">0%</div>
+                    </div>
+                `;
+
+                await instance.loadMedia(file, (p) => {
+                    const bar = document.getElementById('progress-bar');
+                    const text = document.getElementById('progress-text');
+                    const pct = Math.round(p * 100);
+                    if (bar) bar.style.width = pct + '%';
+                    if (text) text.innerText = pct + '%';
+                });
+
+                // Done
+                dropZone.classList.add('hidden');
+                dropZone.classList.remove('z-50', 'bg-black/80'); // Reset
+                annotatorContainer.classList.remove('hidden');
+
+            } catch (e) {
+                console.error(e);
+                alert("Failed to load media: " + e.message);
+                location.reload();
+            }
         }
     </script>
 

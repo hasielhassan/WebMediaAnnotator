@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
-import { WebMediaAnnotator, AppState } from '@web-media-annotator/core';
+import { WebMediaAnnotator, AppState, MediaRegistry } from '@web-media-annotator/core';
 import { Toolbar, Popover, ExportProgress } from '@web-media-annotator/ui';
 import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { Player } from '@web-media-annotator/core';
@@ -12,6 +12,7 @@ export interface AnnotatorProps {
     width?: string | number;
     height?: string | number;
     className?: string;
+    preload?: 'auto' | 'metadata' | 'force-download';
 }
 
 export interface AnnotatorRef {
@@ -19,13 +20,15 @@ export interface AnnotatorRef {
 }
 
 export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
-    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className
+    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const annotatorRef = useRef<WebMediaAnnotator | null>(null);
     const [state, setState] = useState<AppState | null>(null);
     const [useTimecode, setUseTimecode] = useState(false);
     const [exportProgress, setExportProgress] = useState<{ current: number, total: number } | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingProgress, setLoadingProgress] = useState<number | null>(null); // 0-1
 
     useImperativeHandle(ref, () => ({
         getInstance: () => annotatorRef.current
@@ -37,7 +40,8 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         const annotator = new WebMediaAnnotator(containerRef.current, {
             videoSrc: src,
             fps,
-            startFrame
+            startFrame,
+            preload
         });
         annotatorRef.current = annotator;
 
@@ -67,7 +71,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
 
     const handleExport = async (composite: boolean) => {
         if (!annotatorRef.current) return;
-        const dataUrl = await annotatorRef.current.renderer.captureFrame({ composite, videoElement: annotatorRef.current['videoElement'] });
+        const dataUrl = await annotatorRef.current.renderer.captureFrame({ composite, mediaElement: annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement });
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `frame_${state?.currentFrame}_${composite ? 'comp' : 'anno'}.png`;
@@ -106,23 +110,51 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         URL.revokeObjectURL(url);
     };
 
-    const handleLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!annotatorRef.current || !e.target.files || !e.target.files[0]) return;
         const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            try {
-                const annotations = JSON.parse(ev.target?.result as string);
-                if (Array.isArray(annotations)) {
-                    annotatorRef.current?.store.setState({ annotations });
-                    annotatorRef.current?.store.captureSnapshot();
+
+        setIsLoading(true);
+
+        // Check extension
+        if (file.name.toLowerCase().endsWith('.json')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const annotations = JSON.parse(ev.target?.result as string);
+                    if (Array.isArray(annotations)) {
+                        annotatorRef.current?.store.setState({ annotations });
+                        annotatorRef.current?.store.captureSnapshot();
+                    }
+                } catch (err) {
+                    console.error("Invalid JSON", err);
+                    alert("Failed to load JSON");
+                } finally {
+                    setIsLoading(false);
                 }
-            } catch (err) {
-                console.error("Invalid JSON", err);
-                alert("Failed to load JSON");
+            };
+            reader.readAsText(file);
+        } else {
+            // Assume Media
+            try {
+                setLoadingProgress(0);
+                await annotatorRef.current.loadMedia(file, (p) => {
+                    setLoadingProgress(p);
+                });
+                // Reset annotations on new media load? Maybe optional.
+                // For now, let's keep them (overlay use case) or clear them?
+                // Usually new media = new context.
+                if (confirm("Clear existing annotations for new media?")) {
+                    annotatorRef.current.store.setState({ annotations: [] });
+                }
+            } catch (err: any) {
+                console.error("Failed to load media", err);
+                alert("Failed to load media: " + err.message);
+            } finally {
+                setIsLoading(false);
+                setLoadingProgress(null);
             }
-        };
-        reader.readAsText(file);
+        }
     };
 
     // Calculate markers
@@ -135,14 +167,30 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     const totalFrames = state && state.duration ? Math.floor(state.duration * state.fps) : 100;
 
     // Fix aspect ratio on load
-    const handleVideoLoad = () => {
+    const handleMediaLoad = () => {
         if (!annotatorRef.current) return;
-        const video = annotatorRef.current['videoElement'];
-        if (video && containerRef.current) {
-            const ratio = video.videoWidth / video.videoHeight;
-            containerRef.current.style.aspectRatio = `${ratio}`;
-            // Also force resize to ensure renderer matches
-            annotatorRef.current.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+        // Use exposed getter which casts, OR use internal mediaElement if we exposed it. 
+        // The getter videoElement returns HTMLVideoElement, but at runtime it might be IG.
+        // Let's rely on renderer resize or custom logic.
+        // Actually, WebMediaAnnotator handles fitCanvasToVideo internaly on 'loadedmetadata'.
+        // We just need to update Container Aspect Ratio.
+
+        const media = annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement;
+        if (media && containerRef.current) {
+            let w, h;
+            if (media instanceof HTMLVideoElement) {
+                w = media.videoWidth;
+                h = media.videoHeight;
+            } else {
+                w = media.naturalWidth;
+                h = media.naturalHeight;
+            }
+
+            if (w && h) {
+                const ratio = w / h;
+                containerRef.current.style.aspectRatio = `${ratio}`;
+                annotatorRef.current.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+            }
         }
     };
 
@@ -170,11 +218,25 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     };
     useEffect(() => {
         if (annotatorRef.current) {
-            const video = annotatorRef.current['videoElement'];
-            video.addEventListener('loadedmetadata', handleVideoLoad);
-            return () => video.removeEventListener('loadedmetadata', handleVideoLoad);
+            // We can't easily add listener to 'videoElement' if it changes via loadMedia.
+            // Better to rely on store state or internal events. 
+            // The WebMediaAnnotator internal resize observer handles the Canvas/Renderer sync.
+            // We just need to sync Container aspect ratio.
+            // Let's poll or hook into 'loadedmetadata' on init.
+
+            const media = annotatorRef.current['mediaElement'] as Element;
+            if (media) {
+                const handler = () => handleMediaLoad();
+                // Video uses loadedmetadata, Image uses load
+                media.addEventListener('loadedmetadata', handler);
+                media.addEventListener('load', handler);
+                return () => {
+                    media.removeEventListener('loadedmetadata', handler);
+                    media.removeEventListener('load', handler);
+                };
+            }
         }
-    }, [annotatorRef.current]);
+    }, [annotatorRef.current, state?.mediaType]); // Re-run if media type changes (implies new element)
 
     return (
         <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height }}>
@@ -258,6 +320,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     onionSkinPrevFrames={state?.onionSkinPrevFrames}
                     onionSkinNextFrames={state?.onionSkinNextFrames}
                     onOnionSkinSettingsChange={(prev: number, next: number) => annotatorRef.current?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next })}
+                    isImageMode={(state?.mediaType as string) === 'image'}
                 />
 
                 <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10">
@@ -297,8 +360,8 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                 </button>
                                 <label className="flex items-center gap-2 px-2 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded transition-colors w-full text-left cursor-pointer">
                                     <Upload size={16} className="text-yellow-400" />
-                                    Import JSON
-                                    <input type="file" accept=".json" onChange={handleLoad} className="hidden" />
+                                    Open File (Media / JSON)
+                                    <input type="file" accept={`.json,${new MediaRegistry().getAcceptAttribute()}`} onChange={handleLoad} className="hidden" />
                                 </label>
 
                                 <div className="h-px bg-gray-700 my-1" />
@@ -385,129 +448,153 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                 </div>
             </div>
 
-            {/* Timeline / Controls */}
-            <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-4 pb-safe">
-                <div className="flex items-center gap-1">
-                    <button title="Prev Annotation" onClick={() => annotatorRef.current?.player.seekToPrevAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipBack size={16} /></button>
-                    <button title="Prev Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) - 1)} className="p-1 hover:text-white text-gray-400"><ChevronLeft size={16} /></button>
+            {/* Timeline / Controls - Hide completely for Image Mode */}
+            {(state?.mediaType as string) !== 'image' && (
+                <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-4 pb-safe">
+                    <div className="flex items-center gap-1">
+                        <button title="Prev Annotation" onClick={() => annotatorRef.current?.player.seekToPrevAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipBack size={16} /></button>
+                        <button title="Prev Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) - 1)} className="p-1 hover:text-white text-gray-400"><ChevronLeft size={16} /></button>
 
-                    {/* Play/Pause - Clean Style */}
-                    <button
-                        onClick={handlePlayPause}
-                        className="w-8 h-8 flex items-center justify-center text-white hover:text-blue-400 mx-2 transition-colors"
-                    >
-                        {state?.isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                    </button>
+                        {/* Play/Pause - Clean Style - HIDE FOR IMAGE */}
+                        {state?.mediaType === 'video' && (
+                            <button
+                                onClick={handlePlayPause}
+                                className="w-8 h-8 flex items-center justify-center text-white hover:text-blue-400 mx-2 transition-colors"
+                            >
+                                {state?.isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                            </button>
+                        )}
 
-                    <button title="Next Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) + 1)} className="p-1 hover:text-white text-gray-400"><ChevronRight size={16} /></button>
-                    <button title="Next Annotation" onClick={() => annotatorRef.current?.player.seekToNextAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipForward size={16} /></button>
+                        <button title="Next Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) + 1)} className="p-1 hover:text-white text-gray-400"><ChevronRight size={16} /></button>
+                        <button title="Next Annotation" onClick={() => annotatorRef.current?.player.seekToNextAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipForward size={16} /></button>
 
-                    {/* Loop Toggle */}
-                    <button
-                        title="Toggle Loop"
-                        onClick={(e) => {
-                            const v = annotatorRef.current?.['videoElement'];
-                            if (v) {
-                                v.loop = !v.loop;
-                                (e.currentTarget).classList.toggle('text-blue-500');
-                                (e.currentTarget).classList.toggle('text-gray-400');
-                            }
-                        }}
-                        className="p-1 ml-2 text-gray-400 hover:text-white"
-                    >
-                        <Repeat size={16} />
-                    </button>
-
-
-                </div>
-
-                <div className="flex-1 flex flex-col justify-center">
-                    {/* Timeline Slider with Markers */}
-                    <div className="relative w-full h-8 flex items-center group">
-                        {/* Markers layer - Rendered first (behind scrubber) but outside overflow-hidden track */}
-                        <div className="absolute inset-0 pointer-events-none">
-                            {markers.map(frame => (
-                                <div
-                                    key={frame}
-                                    className="absolute top-0 h-full flex flex-col items-center justify-center -translate-x-1/2 z-0 opacity-80"
-                                    style={{ left: `${(frame / totalFrames) * 100}%` }}
-                                >
-                                    {/* Triangle Handle */}
-                                    <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-yellow-400 mb-0.5" />
-                                    {/* Line */}
-                                    <div className="w-0.5 h-full bg-yellow-400/50" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Track Background */}
-                        <div className="absolute inset-x-0 h-1 bg-gray-700 rounded-lg overflow-hidden pointer-events-none top-1/2 -translate-y-1/2" />
-
-                        <input
-                            type="range"
-                            min="0"
-                            max={totalFrames}
-                            value={state?.currentFrame || 0}
-                            onChange={handleSeek}
-                            className="w-full h-full opacity-0 cursor-pointer absolute z-20"
-                        />
-
-                        {/* Custom Scrubber Visual */}
-                        <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full shadow pointer-events-none z-10 border-2 border-white box-content" style={{ left: `calc(${(state?.currentFrame || 0) / totalFrames * 100}% - 10px)` }} />
-                    </div>
-                </div>
-
-                {/* Right Side Controls: Volume & Timecode */}
-                <div className="flex items-center gap-2 border-l border-gray-800 pl-4 h-8 ml-2">
-                    {/* Volume */}
-                    <div className="relative group flex items-center justify-center h-full w-8">
+                        {/* Loop Toggle */}
                         <button
-                            className="text-gray-400 hover:text-white"
-                            onClick={() => {
-                                if (annotatorRef.current) {
-                                    const v = annotatorRef.current['videoElement'];
-                                    v.muted = !v.muted;
-                                    annotatorRef.current.store.setState({ volume: v.muted ? 0 : 1 });
+                            title="Toggle Loop"
+                            onClick={(e) => {
+                                const v = annotatorRef.current?.['videoElement'];
+                                if (v) {
+                                    v.loop = !v.loop;
+                                    (e.currentTarget).classList.toggle('text-blue-500');
+                                    (e.currentTarget).classList.toggle('text-gray-400');
                                 }
                             }}
+                            className="p-1 ml-2 text-gray-400 hover:text-white"
                         >
-                            {state?.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            <Repeat size={16} />
                         </button>
 
-                        {/* Vertical Slider Popup */}
-                        <div className="hidden group-hover:flex absolute bottom-6 mb-1 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded shadow-2xl flex-col items-center h-32 w-8 z-50">
-                            <input
-                                type="range"
-                                min="0" max="1" step="0.1"
-                                defaultValue={state?.volume}
-                                onChange={(e) => {
-                                    if (annotatorRef.current) {
-                                        const val = parseFloat(e.target.value);
-                                        annotatorRef.current['videoElement'].volume = val;
-                                        annotatorRef.current['videoElement'].muted = false;
-                                        annotatorRef.current.store.setState({ volume: val });
-                                    }
-                                }}
-                                className="h-full w-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-                            />
-                        </div>
-                        {/* Invisible bridge for hover */}
-                        <div className="hidden group-hover:block absolute bottom-full w-20 h-6 bg-transparent left-1/2 -translate-x-1/2" />
+
                     </div>
 
-                    {/* Timecode Display */}
-                    <button
-                        onClick={() => setUseTimecode(!useTimecode)}
-                        className="font-mono text-xs w-28 text-right hover:text-blue-400 transition-colors"
-                    >
-                        {useTimecode
-                            ? Player.frameToTimecode(state?.currentFrame || 0, state?.fps || 24)
-                            : `${state?.currentFrame} / ${totalFrames}`
-                        }
-                    </button>
+                    <div className="flex-1 flex flex-col justify-center">
+                        {/* Timeline Slider with Markers - HIDDEN FOR IMAGES */}
+                        {state?.mediaType === 'video' && (
+                            <div className="relative w-full h-8 flex items-center group">
+                                {/* Markers layer - Rendered first (behind scrubber) but outside overflow-hidden track */}
+                                <div className="absolute inset-0 pointer-events-none">
+                                    {markers.map(frame => (
+                                        <div
+                                            key={frame}
+                                            className="absolute top-0 h-full flex flex-col items-center justify-center -translate-x-1/2 z-0 opacity-80"
+                                            style={{ left: `${(frame / totalFrames) * 100}%` }}
+                                        >
+                                            {/* Triangle Handle */}
+                                            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-yellow-400 mb-0.5" />
+                                            {/* Line */}
+                                            <div className="w-0.5 h-full bg-yellow-400/50" />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Track Background */}
+                                <div className="absolute inset-x-0 h-1 bg-gray-700 rounded-lg overflow-hidden pointer-events-none top-1/2 -translate-y-1/2">
+                                    {/* Buffered Ranges */}
+                                    {state?.buffered?.map((range, i) => (
+                                        <div
+                                            key={i}
+                                            className="absolute top-0 bottom-0 bg-gray-500/50"
+                                            style={{
+                                                left: `${(range.start / (state.duration || 1)) * 100}%`,
+                                                width: `${((range.end - range.start) / (state.duration || 1)) * 100}%`
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max={totalFrames}
+                                    value={state?.currentFrame || 0}
+                                    onChange={handleSeek}
+                                    className="w-full h-full opacity-0 cursor-pointer absolute z-20"
+                                />
+
+                                {/* Custom Scrubber Visual */}
+                                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full shadow pointer-events-none z-10 border-2 border-white box-content" style={{ left: `calc(${(state?.currentFrame || 0) / totalFrames * 100}% - 10px)` }} />
+                            </div>
+                        )}
+                        {/* Image Mode Indicator */}
+                        {(state?.mediaType as string) === 'image' && (
+                            <div className="text-gray-500 text-xs text-center">
+                                Single Frame Image Mode
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Side Controls: Volume & Timecode */}
+                    <div className="flex items-center gap-2 border-l border-gray-800 pl-4 h-8 ml-2">
+                        {/* Volume */}
+                        <div className="relative group flex items-center justify-center h-full w-8">
+                            <button
+                                className="text-gray-400 hover:text-white"
+                                onClick={() => {
+                                    if (annotatorRef.current) {
+                                        const v = annotatorRef.current['videoElement'];
+                                        v.muted = !v.muted;
+                                        annotatorRef.current.store.setState({ volume: v.muted ? 0 : 1 });
+                                    }
+                                }}
+                            >
+                                {state?.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            </button>
+
+                            {/* Vertical Slider Popup */}
+                            <div className="hidden group-hover:flex absolute bottom-6 mb-1 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded shadow-2xl flex-col items-center h-32 w-8 z-50">
+                                <input
+                                    type="range"
+                                    min="0" max="1" step="0.1"
+                                    defaultValue={state?.volume}
+                                    onChange={(e) => {
+                                        if (annotatorRef.current) {
+                                            const val = parseFloat(e.target.value);
+                                            annotatorRef.current['videoElement'].volume = val;
+                                            annotatorRef.current['videoElement'].muted = false;
+                                            annotatorRef.current.store.setState({ volume: val });
+                                        }
+                                    }}
+                                    className="h-full w-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
+                                />
+                            </div>
+                            {/* Invisible bridge for hover */}
+                            <div className="hidden group-hover:block absolute bottom-full w-20 h-6 bg-transparent left-1/2 -translate-x-1/2" />
+                        </div>
+
+                        {/* Timecode Display */}
+                        <button
+                            onClick={() => setUseTimecode(!useTimecode)}
+                            className="font-mono text-xs w-28 text-right hover:text-blue-400 transition-colors"
+                        >
+                            {useTimecode
+                                ? Player.frameToTimecode(state?.currentFrame || 0, state?.fps || 24)
+                                : `${state?.currentFrame} / ${totalFrames}`
+                            }
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Export Progress Overlay */}
             {exportProgress && (
@@ -516,6 +603,29 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     total={exportProgress.total}
                     title="Exporting Annotated Frames"
                 />
+            )}
+
+            {/* Loading Overlay */}
+            {isLoading && (
+                <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-white font-medium">Processing Media...</div>
+                        {loadingProgress !== null && (
+                            <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden mt-2">
+                                <div
+                                    className="h-full bg-blue-500 transition-all duration-300 ease-out"
+                                    style={{ width: `${Math.min(100, Math.max(0, loadingProgress * 100))}%` }}
+                                />
+                            </div>
+                        )}
+                        {loadingProgress !== null && (
+                            <div className="text-xs text-gray-400 font-mono">
+                                {Math.round(loadingProgress * 100)}%
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );

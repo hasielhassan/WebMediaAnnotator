@@ -4,15 +4,21 @@ export class Renderer {
     public canvas: HTMLCanvasElement;
     public ctx: CanvasRenderingContext2D;
     private store: Store;
+    private mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement;
 
-    constructor(store: Store, canvas: HTMLCanvasElement, private videoElement?: HTMLVideoElement) {
+    constructor(store: Store, canvas: HTMLCanvasElement, mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement) {
         this.store = store;
         this.canvas = canvas;
+        this.mediaElement = mediaElement;
         const context = this.canvas.getContext('2d');
         if (!context) throw new Error('Could not get 2d context');
         this.ctx = context;
 
         this.initListeners();
+    }
+
+    setMediaElement(newElement: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement) {
+        this.mediaElement = newElement;
     }
 
     private initListeners() {
@@ -48,9 +54,9 @@ export class Renderer {
 
         // 1. Sync Video Element Transform (CSS)
         const transform = `translate(${state.viewport.x}px, ${state.viewport.y}px) scale(${state.viewport.scale})`;
-        if (this.videoElement) {
-            this.videoElement.style.transformOrigin = '0 0';
-            this.videoElement.style.transform = transform;
+        if (this.mediaElement) {
+            this.mediaElement.style.transformOrigin = '0 0';
+            this.mediaElement.style.transform = transform;
         }
 
         // 2. Sync Canvas Element Transform (CSS)
@@ -123,19 +129,37 @@ export class Renderer {
         type?: 'image/png' | 'image/jpeg',
         quality?: number,
         composite?: boolean,
-        videoElement?: HTMLVideoElement,
+        mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
         frame?: number // Optional specific frame to capture
     } = {}): Promise<string> {
         const type = options.type || 'image/png';
         const quality = options.quality || 1.0;
 
         // Get Dimensions (prefer video intrinsic)
-        const video = options.videoElement || this.videoElement;
-        const width = video ? video.videoWidth : this.canvas.width;
-        const height = video ? video.videoHeight : this.canvas.height;
+        const media = options.mediaElement || this.mediaElement;
+
+        let width = this.canvas.width;
+        let height = this.canvas.height;
+
+        if (media) {
+            if (media instanceof HTMLVideoElement) {
+                width = media.videoWidth;
+                height = media.videoHeight;
+            } else if (media instanceof HTMLImageElement) {
+                width = media.naturalWidth;
+                height = media.naturalHeight;
+            } else if (media instanceof HTMLCanvasElement) {
+                // If it's a GifAdapter canvas, it might have videoWidth
+                width = (media as any).videoWidth || media.width;
+                height = (media as any).videoHeight || media.height;
+            }
+        }
 
         if (width === 0 || height === 0) {
-            throw new Error("Invalid output dimensions");
+            // Fallback or early exit during loading
+            // If canvas is also 0, this is an error
+            if (this.canvas.width === 0) throw new Error("Invalid output dimensions (0x0)");
+            // otherwise stick to canvas dims if media isn't ready
         }
 
         // Create offscreen canvas at full resolution
@@ -145,9 +169,9 @@ export class Renderer {
         const ctx = offscreen.getContext('2d');
         if (!ctx) throw new Error('Could not create offscreen context');
 
-        // Draw Video if composite
-        if (options.composite && video) {
-            ctx.drawImage(video, 0, 0, width, height);
+        // Draw Video/Image if composite
+        if (options.composite && media) {
+            ctx.drawImage(media, 0, 0, width, height);
         }
 
         // Render Annotations to this new context

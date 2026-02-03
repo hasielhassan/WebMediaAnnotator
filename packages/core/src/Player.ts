@@ -1,27 +1,76 @@
 import { Store } from './Store';
 
 export class Player {
-    private videoElement: HTMLVideoElement;
+    private mediaElement: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement;
     private store: Store;
     private animationFrameId: number | null = null;
 
-    constructor(store: Store, videoElement: HTMLVideoElement) {
+    constructor(store: Store, mediaElement: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement) {
         this.store = store;
-        this.videoElement = videoElement;
+        this.mediaElement = mediaElement;
+
+        this.initListeners();
+    }
+
+    setMediaElement(newElement: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement) {
+        // Cleanup old listeners if any
+        // Since we didn't store listener refs, we rely on GC if element is removed from DOM/Refs
+        // But for cleaner architecture, we should probably remove listeners. 
+        // For now, assuming old element is destroyed/detached.
+
+        this.mediaElement = newElement;
+
+        // Reset Audio Buffer (fix for preload timing)
+        this.audioBuffer = null;
 
         this.initListeners();
     }
 
     private initListeners() {
-        this.videoElement.addEventListener('loadedmetadata', () => {
-            this.store.setState({
-                duration: this.videoElement.duration
-            });
-        });
+        if (this.mediaElement.tagName === 'IMG') {
+            // Image Mode: Static duration
+            // Delay slightly to ensure store is ready if needed, or just set immediately
+            setTimeout(() => {
+                this.store.setState({
+                    duration: 0, // 1 frame effectively
+                    isPlaying: false
+                });
+            }, 0);
+            return;
+        }
 
-        this.videoElement.addEventListener('timeupdate', () => {
+        // Video or Canvas(GIF)
+        const playable = this.mediaElement as any;
+
+        const updateDuration = () => {
+            if (playable.duration) {
+                this.store.setState({ duration: playable.duration });
+            }
+        };
+
+        const updateBuffer = () => {
+            if (playable.buffered) {
+                const buffered: { start: number; end: number }[] = [];
+                for (let i = 0; i < playable.buffered.length; i++) {
+                    buffered.push({
+                        start: playable.buffered.start(i),
+                        end: playable.buffered.end(i)
+                    });
+                }
+                this.store.setState({ buffered });
+            }
+        };
+
+        playable.addEventListener('loadedmetadata', updateDuration);
+        playable.addEventListener('progress', updateBuffer);
+
+        // Also call immediately if metadata already loaded (e.g. GIF)
+        if (playable.duration) updateDuration();
+        updateBuffer(); // Initial buffer check
+
+        playable.addEventListener('timeupdate', () => {
             // Only update if not seeking to avoid loops
-            const currentTime = this.videoElement.currentTime;
+            const currentTime = playable.currentTime;
             const fps = this.store.getState().fps;
             const currentFrame = Math.round(currentTime * fps);
 
@@ -31,15 +80,35 @@ export class Player {
             });
         });
 
-        this.videoElement.addEventListener('play', () => {
+        playable.addEventListener('play', () => {
             this.store.setState({ isPlaying: true });
             this.startLoop();
+
+            // Resume Audio Context if needed
+            if (this.audioContext?.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            // Ensure audio is initialized for scrubbing
+            if (!this.audioBuffer) {
+                this.initAudio();
+            }
         });
 
-        this.videoElement.addEventListener('pause', () => {
+        playable.addEventListener('pause', () => {
             this.store.setState({ isPlaying: false });
             this.stopLoop();
         });
+
+        // Sync initial volume
+        const state = this.store.getState();
+        playable.volume = state.volume;
+        playable.muted = false; // Ensure unmuted by default
+
+        // Try to init audio for scrubbing immediately (might stay suspended until click)
+        if (!this.audioBuffer) {
+            // Delay slightly to not block main thread during heavy load
+            setTimeout(() => this.initAudio(), 1000);
+        }
     }
 
     private startLoop() {
@@ -59,17 +128,36 @@ export class Player {
     private isScrubbing = false;
 
     private async initAudio() {
-        if (this.audioContext) return;
-        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (this.audioBuffer) return; // Already initialized for this media
+
+        if (!this.audioContext) {
+            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
 
         // Load audio from video src
-        if (this.videoElement.src) {
+        if (this.mediaElement instanceof HTMLVideoElement) {
             try {
-                const response = await fetch(this.videoElement.src);
-                const arrayBuffer = await response.arrayBuffer();
+                console.log("[Core] Initializing Audio Scrubbing Buffer...");
+                let arrayBuffer: ArrayBuffer;
+
+                if ((this.mediaElement as any).__rawFile) {
+                    // Fast path: direct file access (bypasses SW/fetch issues)
+                    const file = (this.mediaElement as any).__rawFile as File;
+                    console.log(`[Core] Reading audio from attached File object (${file.name})...`);
+                    arrayBuffer = await file.arrayBuffer();
+                } else if (this.mediaElement.src) {
+                    // Fallback: fetch via URL (might be blob: or http:)
+                    console.log(`[Core] Fetching audio from URL (${this.mediaElement.src})...`);
+                    const response = await fetch(this.mediaElement.src);
+                    arrayBuffer = await response.arrayBuffer();
+                } else {
+                    return;
+                }
+
                 this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                console.log("[Core] Audio Scrubbing Ready.");
             } catch (e) {
-                // console.error("Failed to load audio for scrubbing", e);
+                console.error("[Core] Failed to load audio for scrubbing:", e);
                 // Suppress audio decode error for now, as it blocks clean console output for debugging
             }
         }
@@ -78,13 +166,14 @@ export class Player {
     // Play a snippet of audio at the current time (for scrubbing)
     private playScrubAudio() {
         if (!this.audioContext || !this.audioBuffer || this.store.getState().isPlaying) return;
+        if (!(this.mediaElement instanceof HTMLVideoElement)) return;
 
         // Check volume/mute
-        const volume = this.videoElement.muted ? 0 : this.videoElement.volume;
+        const volume = this.mediaElement.muted ? 0 : this.mediaElement.volume;
         if (volume <= 0.01) return; // Silent, don't play
 
         // Simple "tape" effect: play small chunk
-        const time = this.videoElement.currentTime;
+        const time = this.mediaElement.currentTime;
         const duration = 0.1; // 100ms snippet
 
         const source = this.audioContext.createBufferSource();
@@ -104,22 +193,39 @@ export class Player {
     // Public API //
 
     play() {
-        this.videoElement.play();
+        const playable = this.mediaElement as any;
+        if (typeof playable.play === 'function') {
+            playable.play();
+        } else {
+            // Image mode fallback
+            this.store.setState({ isPlaying: true });
+        }
     }
 
     pause() {
-        this.videoElement.pause();
+        const playable = this.mediaElement as any;
+        if (typeof playable.pause === 'function') {
+            playable.pause();
+        } else {
+            this.store.setState({ isPlaying: false });
+        }
     }
 
     seekToFrame(frame: number) {
         const fps = this.store.getState().fps;
         const time = frame / fps;
-        this.videoElement.currentTime = time;
+
+        const playable = this.mediaElement as any;
+        // Check if writable currentTime (Video or GiftAdapter)
+        if ('currentTime' in playable) {
+            playable.currentTime = time;
+        }
+
         this.store.setState({ currentFrame: frame, currentTime: time });
 
         // Trigger scrub sound
         if (this.audioBuffer) this.playScrubAudio();
-        else this.initAudio(); // Try init if not ready
+        // else this.initAudio(); // Avoid auto-init on seek for perf/noise
     }
 
     seekToNextAnnotation() {

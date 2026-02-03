@@ -53,6 +53,11 @@ jobs:
           cp apps/demo/landing.html public/index.html
           cp screenshot.png public/
           
+          # 1b. PUBLIC ASSETS (COI Service Worker, etc)
+          if [ -d "apps/demo/public" ]; then
+            cp -r apps/demo/public/* public/
+          fi
+          
           # 2. REACT DEMO (Subdirectory)
           mkdir public/demo
           cp -r apps/demo/dist/* public/demo/
@@ -63,7 +68,14 @@ jobs:
           # 4. DEPENDENCIES & LEGACY
           # Create directory structure for the embed package
           mkdir -p public/packages/embed/dist
-          cp packages/embed/dist/* public/packages/embed/dist/
+          cp -r packages/embed/dist/* public/packages/embed/dist/
+          
+          # 5. FFMPEG CORE (Required for Transcoding)
+          # Ensure node_modules exists (npm ci ran)
+          if [ -d "node_modules/@ffmpeg/core/dist/esm" ]; then
+             cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js public/
+             cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm public/
+          fi
           
           # Keep quick-review.html for legacy access
           cp apps/demo/quick-review.html public/quick-review.html

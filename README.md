@@ -36,6 +36,21 @@ The ultimate goal is to create a professional-grade, browser-based media annotat
 - **Ghosting (Onion Skinning)**:
     - View previous (red) and future (green) frames overlaid on the current frame.
     - Configurable range (1-10 frames) and opacity.
+- **🔊 Audio Scrubbing**: 
+    - Real-time audio feedback while scrubbing the timeline, essential for lip-sync and cueing.
+    - Works with both native video and force-downloaded media.
+
+### 🚀 Performance & Media Support
+- **Force Download Strategy**: 
+    - Option (`preload="force-download"`) to pre-fetch the entire media file as a Blob.
+    - Delivers **instant seeking** and zero-buffering playback even on slow connections.
+- **Client-Side Transcoding (FFmpeg WASM)**:
+    - **Play Anything**: Drag & drop `.mkv`, `.mov` (ProRes), `.avi`, or `.heic` files.
+    - The engine automatically transcodes them locally in the browser to MP4/JPG for frame-accurate annotation.
+    - No server upload required – 100% private.
+- **Smart Caching**: 
+    - efficiently manages large media files in memory for smooth performance.
+
 ### ⌨️ Shortcuts & Interaction
 - **Mouse**: Middle-click to Pan (temporary), Scroll to Zoom.
 - **Keyboard**:
@@ -132,7 +147,7 @@ function App() {
       <Annotator 
         src="video.mp4" 
         fps={24} 
-        startFrame={0} 
+        preload="force-download" // Optional: fetches entire file for instant seeking
       />
     </div>
   );
@@ -154,6 +169,7 @@ import '@web-media-annotator/embed';
     fps="24"
     width="100%"
     height="100%"
+    preload="force-download"
 ></web-media-annotator>
 ```
 

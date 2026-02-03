@@ -51,6 +51,10 @@ export interface AppState {
         y: number;
         scale: number;
     };
+
+    // Media Info
+    mediaType: 'video' | 'image' | undefined;
+    buffered: { start: number; end: number }[]; // In seconds
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -72,6 +76,8 @@ export const DEFAULT_STATE: AppState = {
     onionSkinPrevFrames: 3,
     onionSkinNextFrames: 3,
     viewport: { x: 0, y: 0, scale: 1 },
+    mediaType: 'video',
+    buffered: [],
 };
 
 export class Store extends EventEmitter {

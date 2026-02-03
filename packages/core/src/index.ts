@@ -12,6 +12,8 @@ import { EraserTool } from './tools/EraserTool';
 import { EyeDropperTool } from './tools/EyeDropperTool';
 import { PanTool } from './tools/PanTool';
 import JSZip from 'jszip';
+import { MediaRegistry } from './MediaRegistry';
+import { MediaAdapter } from './adapters/MediaAdapter';
 
 export class WebMediaAnnotator {
     public store: Store;
@@ -19,6 +21,7 @@ export class WebMediaAnnotator {
     public sync: LinkSync;
     public renderer: Renderer;
     public plugins: PluginManager;
+    public registry: MediaRegistry;
 
     // Tools
     private tools: Map<string, BaseTool> = new Map();
@@ -26,7 +29,14 @@ export class WebMediaAnnotator {
 
     // DOM
     private container: HTMLElement;
-    private videoElement: HTMLVideoElement;
+    private mediaElement: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement;
+    // Legacy support (getter)
+    public get videoElement(): HTMLVideoElement {
+        if (this.mediaElement instanceof HTMLVideoElement) return this.mediaElement;
+        // Fallback or throw? For strict compat, maybe return a dummy or cast. 
+        // But better to let it fail if used incorrectly in Image mode.
+        return this.mediaElement as unknown as HTMLVideoElement;
+    }
 
     // State for temporary tool switching
     private previousTool: string | null = null;
@@ -37,26 +47,93 @@ export class WebMediaAnnotator {
     constructor(container: HTMLElement, options: {
         videoSrc?: string;
         fps?: number;
-        startFrame?: number
+        startFrame?: number;
+        preload?: 'auto' | 'metadata' | 'force-download'; // New Option
     } = {}) {
         this.container = container;
         this.container.style.position = 'relative'; // Ensure positioning context
 
-        // 1. Video Layer
-        this.videoElement = document.createElement('video');
-        this.videoElement.style.width = '100%';
-        this.videoElement.style.height = '100%';
-        this.videoElement.style.display = 'block';
+        // 1. Initialize Registry
+        this.registry = new MediaRegistry();
 
-        // Critical: Disable native controls and PiP to prevent browser interference
-        this.videoElement.controls = false;
-        // @ts-ignore - disablePictureInPicture is standard but strict TS might miss it on HTMLVideoElement
-        this.videoElement.disablePictureInPicture = true;
-        this.videoElement.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
-        this.videoElement.setAttribute('playsinline', 'true');
+        // 2. Handle Initial Option
+        if (options.videoSrc) {
+            const src = options.videoSrc;
+            const ext = src.split('.').pop()?.toLowerCase() || '';
+            const complexFormats = ['mov', 'mkv', 'avi', 'wmv', 'flv', 'ts', 'mts', 'heic', 'psd'];
 
-        if (options.videoSrc) this.videoElement.src = options.videoSrc;
-        this.container.appendChild(this.videoElement);
+            const shouldForceDownload = options.preload === 'force-download' || complexFormats.includes(ext);
+
+            if (shouldForceDownload) {
+                // Create a placeholder
+                this.mediaElement = document.createElement('video');
+                this.mediaElement.style.display = 'none';
+                this.container.appendChild(this.mediaElement);
+
+                // Fetch and load
+                console.log(`[Core] Loading media from URL (${src}). Mode: ${shouldForceDownload ? 'Force Download' : 'Native'}`);
+
+                // Helper to fetch with progress (basic)
+                const load = async () => {
+                    try {
+                        const response = await fetch(src);
+                        if (!response.ok) throw new Error(`Failed to fetch ${src}: ${response.statusText}`);
+
+                        const contentLength = response.headers.get('content-length');
+                        const total = contentLength ? parseInt(contentLength, 10) : 0;
+                        let loaded = 0;
+
+                        const reader = response.body?.getReader();
+                        const chunks: Uint8Array[] = [];
+
+                        if (reader) {
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                if (value) {
+                                    chunks.push(value);
+                                    loaded += value.length;
+                                    // Optional: Dispatch event for UI
+                                    // if (total) console.log(`Loading: ${Math.round(loaded/total*100)}%`);
+                                }
+                            }
+                        }
+
+                        const blob = new Blob(chunks as any, { type: response.headers.get('content-type') || 'video/mp4' });
+                        const filename = src.split('/').pop() || `file.${ext}`;
+                        const file = new File([blob], filename, { type: blob.type });
+                        console.log(`[Core] Download complete (${file.size} bytes). Loading into pipeline...`);
+                        await this.loadMedia(file);
+
+                    } catch (err) {
+                        console.error("[Core] Failed to load media from URL:", err);
+                    }
+                };
+                load();
+
+            } else {
+                // Simple format: Use native video element
+                this.mediaElement = document.createElement('video');
+                const v = this.mediaElement as HTMLVideoElement;
+                v.style.width = '100%';
+                v.style.height = '100%';
+                v.style.display = 'block';
+                v.controls = false;
+                v.disablePictureInPicture = true;
+                v.crossOrigin = 'anonymous'; // Important for canvas capture
+                v.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+                v.setAttribute('playsinline', 'true');
+                v.src = src;
+                this.container.appendChild(v);
+            }
+        } else {
+            // Placeholder for now, or just don't attach. 
+            // But Core needs element. 
+            // Let's create a dummy video element to allow 'empty' init without crashing Player/Renderer
+            this.mediaElement = document.createElement('video');
+            this.mediaElement.style.display = 'none';
+            this.container.appendChild(this.mediaElement);
+        }
 
         // 2. Canvas Layer
         this.canvasElement = document.createElement('canvas');
@@ -73,9 +150,9 @@ export class WebMediaAnnotator {
             startFrame: options.startFrame || 0
         });
 
-        this.player = new Player(this.store, this.videoElement);
+        this.player = new Player(this.store, this.mediaElement);
         this.sync = new LinkSync();
-        this.renderer = new Renderer(this.store, this.canvasElement, this.videoElement);
+        this.renderer = new Renderer(this.store, this.canvasElement, this.mediaElement);
         this.plugins = new PluginManager(this);
 
 
@@ -91,15 +168,33 @@ export class WebMediaAnnotator {
 
         this.tools.set('eyedropper', new EyeDropperTool(this, (x: number, y: number) => {
             // Pick color logic
-            const rect = this.videoElement.getBoundingClientRect();
+            if (!this.mediaElement) return;
 
-            // Draw video frame to offscreen canvas
+            // Ensure media is ready
+            let width = 0;
+            let height = 0;
+
+            if (this.mediaElement instanceof HTMLVideoElement) {
+                width = this.mediaElement.videoWidth;
+                height = this.mediaElement.videoHeight;
+            } else if (this.mediaElement instanceof HTMLImageElement) {
+                width = this.mediaElement.naturalWidth;
+                height = this.mediaElement.naturalHeight;
+            } else if (this.mediaElement instanceof HTMLCanvasElement) {
+                width = this.mediaElement.width;
+                height = this.mediaElement.height;
+            }
+
+            if (!width || !height) return;
+
+            // Draw video/image frame to offscreen canvas
             const offscreen = document.createElement('canvas');
-            offscreen.width = this.videoElement.videoWidth;
-            offscreen.height = this.videoElement.videoHeight;
+            offscreen.width = width;
+            offscreen.height = height;
             const ctx = offscreen.getContext('2d');
             if (ctx) {
-                ctx.drawImage(this.videoElement, 0, 0);
+                // drawImage supports video, image, and canvas
+                ctx.drawImage(this.mediaElement, 0, 0);
                 const pxX = Math.floor(x * offscreen.width);
                 const pxY = Math.floor(y * offscreen.height);
                 const pixel = ctx.getImageData(pxX, pxY, 1, 1).data;
@@ -583,39 +678,81 @@ export class WebMediaAnnotator {
         });
     }
 
+    private resizeObserver: ResizeObserver | null = null;
+
     private initResizeObserver() {
-        // 1. Handle Video Metadata Load (for aspect ratio)
-        this.videoElement.addEventListener('loadedmetadata', () => {
-            this.fitCanvasToVideo();
-        });
-
         // 2. Handle Container Resize
-        const observer = new ResizeObserver(() => {
+        this.resizeObserver = new ResizeObserver(() => {
             this.fitCanvasToVideo();
         });
-        observer.observe(this.container); // Observe container, not video element
+        this.resizeObserver.observe(this.container);
 
-        // Also observe video element just in case
-        observer.observe(this.videoElement);
+        // Initial binding
+        this.bindMediaListeners();
+    }
+
+    private bindMediaListeners() {
+        if (!this.mediaElement) return;
+
+        // 1. Handle Media Load (for aspect ratio)
+        const onMediaLoad = () => {
+            this.fitCanvasToVideo();
+        };
+
+        if (this.mediaElement instanceof HTMLVideoElement || this.mediaElement instanceof HTMLCanvasElement) {
+            this.mediaElement.addEventListener('loadedmetadata', onMediaLoad);
+            // Also check if already ready (for GifAdapter immediate load)
+            const playable = this.mediaElement as any;
+            if (playable.videoWidth && playable.videoHeight) {
+                onMediaLoad();
+            }
+        } else {
+            this.mediaElement.addEventListener('load', onMediaLoad);
+            // If already loaded
+            if ((this.mediaElement as HTMLImageElement).complete) onMediaLoad();
+        }
+
+        // Observe media element
+        if (this.resizeObserver) {
+            this.resizeObserver.observe(this.mediaElement);
+            // Verify: We don't necessarily need to unobserve the old one explicitly if it's garbage collected, 
+            // but for correctness, strict cleanup would be better. 
+            // However, ResizeObserver maps exact Element references.
+        }
     }
 
     private fitCanvasToVideo() {
-        if (!this.videoElement.videoWidth || !this.videoElement.videoHeight) return;
+        let mediaW = 0;
+        let mediaH = 0;
+
+        if (this.mediaElement instanceof HTMLVideoElement) {
+            mediaW = this.mediaElement.videoWidth;
+            mediaH = this.mediaElement.videoHeight;
+        } else if (this.mediaElement instanceof HTMLImageElement) {
+            mediaW = this.mediaElement.naturalWidth;
+            mediaH = this.mediaElement.naturalHeight;
+        } else if (this.mediaElement instanceof HTMLCanvasElement) {
+            // Check for video-like props (GifAdapter) or fall back to canvas dims
+            mediaW = (this.mediaElement as any).videoWidth || this.mediaElement.width;
+            mediaH = (this.mediaElement as any).videoHeight || this.mediaElement.height;
+        }
+
+        if (!mediaW || !mediaH) return;
 
         const containerRect = this.container.getBoundingClientRect();
-        const videoRatio = this.videoElement.videoWidth / this.videoElement.videoHeight;
+        const videoRatio = mediaW / mediaH;
         const containerRatio = containerRect.width / containerRect.height;
 
         let finalW, finalH, finalTop, finalLeft;
 
         if (containerRatio > videoRatio) {
-            // Container is wider than video (Pillarbox)
+            // Container is wider than media (Pillarbox)
             finalH = containerRect.height;
             finalW = finalH * videoRatio;
             finalTop = 0;
             finalLeft = (containerRect.width - finalW) / 2;
         } else {
-            // Container is taller than video (Letterbox)
+            // Container is taller than media (Letterbox)
             finalW = containerRect.width;
             finalH = finalW / videoRatio;
             finalLeft = 0;
@@ -683,10 +820,55 @@ export class WebMediaAnnotator {
         return await zip.generateAsync({ type: 'blob' });
     }
 
+    async loadMedia(file: File, onProgress?: (progress: number) => void) {
+        // 1. Get Adapter
+        const adapter = await this.registry.getAdapter(file);
+
+        // 2. Load Element
+        const element = await adapter.load(file, onProgress);
+
+        // 3. Update DOM
+        if (this.mediaElement && this.mediaElement.parentNode) {
+            this.mediaElement.parentNode.removeChild(this.mediaElement);
+        }
+
+        this.mediaElement = element;
+        this.mediaElement.style.width = '100%';
+        this.mediaElement.style.height = '100%';
+        this.mediaElement.style.objectFit = 'contain'; // Maintain aspect ratio
+        this.mediaElement.style.display = 'block';
+        this.mediaElement.style.pointerEvents = 'none'; // Allow clicks to pass through to canvas
+        this.mediaElement.style.userSelect = 'none';
+        this.mediaElement.setAttribute('draggable', 'false');
+
+        if (element instanceof HTMLVideoElement) {
+            element.controls = false;
+            // @ts-ignore
+            element.disablePictureInPicture = true;
+            element.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+            element.setAttribute('playsinline', 'true');
+        }
+
+        // Insert before canvas
+        this.container.insertBefore(this.mediaElement, this.canvasElement);
+
+        // 4. Update Core
+        this.store.setState({ mediaType: adapter.type });
+        this.player.setMediaElement(element);
+        this.renderer.setMediaElement(element);
+
+        // 5. Re-bind Listeners
+        this.bindMediaListeners();
+    }
+
     destroy() {
         // Cleanup...
-        this.container.removeChild(this.videoElement);
-        this.container.removeChild(this.canvasElement);
+        if (this.mediaElement && this.mediaElement.parentNode) {
+            this.mediaElement.parentNode.removeChild(this.mediaElement);
+        }
+        if (this.canvasElement && this.canvasElement.parentNode) {
+            this.canvasElement.parentNode.removeChild(this.canvasElement);
+        }
     }
 }
 
@@ -695,3 +877,4 @@ export * from './Player';
 export * from './LinkSync';
 export * from './Renderer';
 export * from './PluginManager';
+export * from './MediaRegistry'; // Export Registry

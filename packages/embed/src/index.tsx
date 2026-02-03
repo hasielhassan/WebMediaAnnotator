@@ -52,6 +52,7 @@ export class WebMediaAnnotatorElement extends HTMLElement {
         const startFrame = parseInt(this.getAttribute('start-frame') || '0');
         const width = this.getAttribute('width') || '100%';
         const height = this.getAttribute('height') || '100%';
+        const preload = this.getAttribute('preload') as 'auto' | 'metadata' | 'force-download' | undefined;
 
         if (!this.root) {
             this.root = createRoot(this.shadowRoot);
@@ -83,6 +84,11 @@ export class WebMediaAnnotatorLightElement extends HTMLElement {
         return ['src', 'fps', 'start-frame', 'width', 'height'];
     }
 
+    // Public API to access internal instance
+    get instance(): CoreAnnotator | null {
+        return this.annotatorRef?.getInstance() ?? null;
+    }
+
     connectedCallback() {
         this.render();
     }
@@ -104,6 +110,7 @@ export class WebMediaAnnotatorLightElement extends HTMLElement {
         const startFrame = parseInt(this.getAttribute('start-frame') || '0');
         const width = this.getAttribute('width') || '100%';
         const height = this.getAttribute('height') || '100%';
+        const preload = this.getAttribute('preload') as 'auto' | 'metadata' | 'force-download' | undefined;
 
         if (!this.root) {
             this.root = createRoot(this);
@@ -112,12 +119,16 @@ export class WebMediaAnnotatorLightElement extends HTMLElement {
         this.root.render(
             <React.StrictMode>
                 <Annotator
-                    ref={(r: AnnotatorRef | null) => this.annotatorRef = r}
+                    ref={(r: AnnotatorRef | null) => {
+                        console.log("[Embed] Ref callback called with:", r);
+                        this.annotatorRef = r;
+                    }}
                     src={src}
                     fps={fps}
                     startFrame={startFrame}
                     width={width}
                     height={height}
+                    preload={preload}
                 />
             </React.StrictMode>
         );
