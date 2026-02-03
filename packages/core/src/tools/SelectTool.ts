@@ -97,22 +97,21 @@ export class SelectTool extends BaseTool {
     }
 
     private hitTest(ann: Annotation, x: number, y: number): boolean {
-        // 1. Text Hit Test (Approximation)
-        if (ann.type === 'text' && ann.points && ann.text) {
+        if (ann.type === 'text' && ann.points && ann.points.length >= 2) {
+            const p1 = ann.points[0];
+            const p2 = ann.points[1];
+            const minX = Math.min(p1.x, p2.x);
+            const maxX = Math.max(p1.x, p2.x);
+            const minY = Math.min(p1.y, p2.y);
+            const maxY = Math.max(p1.y, p2.y);
+
+            // Simple Box Hit Test
+            return x >= minX && x <= maxX && y >= minY && y <= maxY;
+        } else if (ann.type === 'text' && ann.points && ann.text) {
+            // Fallback for legacy single-point text
             const p = ann.points[0];
-            // Approx width/height based on font size (assuming ~24px at 1080p -> ~0.02 normalized)
-            // W = char count * width per char (approx 0.015)
             const W = (ann.text.length * 0.012);
             const H = 0.025;
-            // Box usually starts at bottom-left or top-left? Canvas fillText starts at baseline left.
-            // Let's assume point is bottom-left.
-            // Test range: x to x+W, y-H to y (if baseline). 
-            // Or center? Let's try centered box logic or top-left.
-            // Standard canvas text is bottom-left aligned by default if not specified.
-            // Let's assume standard top-left for simplicity in our tool or check Renderer.
-            // Renderer: this.ctx.fillText(annotation.text, x, y); Default is alphabetic baseline.
-            // So y is the bottom line.
-
             return x >= p.x && x <= p.x + W && y >= p.y - H && y <= p.y + (H * 0.2);
         }
 

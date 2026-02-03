@@ -48,7 +48,7 @@ export class Renderer {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
-    render() {
+    render(hiddenAnnotationId?: string) {
         this.clear();
         const state = this.store.getState();
 
@@ -111,7 +111,8 @@ export class Renderer {
             }
         }
 
-        const annotations = this.store.getAnnotationsForFrame(state.currentFrame);
+        const annotations = this.store.getAnnotationsForFrame(state.currentFrame)
+            .filter(a => a.id !== hiddenAnnotationId);
         this.renderAnnotationsToContext(this.ctx, annotations, this.canvas.width, this.canvas.height);
 
         // Render Selection
@@ -280,7 +281,40 @@ export class Renderer {
                 const fontSize = (annotation.style.fontSize || 24) * scaleFactor;
                 ctx.font = `${fontSize}px Arial`;
                 ctx.fillStyle = ctx.strokeStyle;
-                ctx.fillText(annotation.text, annotation.points[0].x * width, annotation.points[0].y * height);
+                ctx.textBaseline = 'top'; // Match HTML Input alignment
+
+                // Text Wrapping
+                if (annotation.points.length >= 2) {
+                    const p1 = annotation.points[0];
+                    const p2 = annotation.points[1];
+                    const x = Math.min(p1.x, p2.x) * width;
+                    const y = Math.min(p1.y, p2.y) * height;
+                    const w = Math.abs(p2.x - p1.x) * width;
+                    const h = Math.abs(p2.y - p1.y) * height; // Not strictly used for cut-off yet, but good to have
+
+                    const words = annotation.text.split(' ');
+                    let line = '';
+                    let yCursor = y; // Start at top because textBaseline is 'top'
+
+                    const lineHeight = fontSize * 1.2;
+
+                    for (let n = 0; n < words.length; n++) {
+                        const testLine = line + words[n] + ' ';
+                        const metrics = ctx.measureText(testLine);
+                        const testWidth = metrics.width;
+                        if (testWidth > w && n > 0) {
+                            ctx.fillText(line, x, yCursor);
+                            line = words[n] + ' ';
+                            yCursor += lineHeight;
+                        } else {
+                            line = testLine;
+                        }
+                    }
+                    ctx.fillText(line, x, yCursor);
+                } else {
+                    // Fallback Single Point
+                    ctx.fillText(annotation.text, annotation.points[0].x * width, annotation.points[0].y * height);
+                }
             }
 
             ctx.stroke();

@@ -7,6 +7,8 @@ export interface Annotation {
     type: 'freehand' | 'arrow' | 'circle' | 'square' | 'text';
     points?: { x: number; y: number; p?: number }[]; // For freehand/polygons
     text?: string;
+    // Fallback vector paths for text (opentype.js JSON format or SVG path commands)
+    fallbackPaths?: any[];
     style: {
         color: string;
         width: number;
