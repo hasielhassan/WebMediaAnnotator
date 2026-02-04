@@ -8,7 +8,7 @@ export interface Annotation {
     points?: { x: number; y: number; p?: number }[]; // For freehand/polygons
     text?: string;
     // Fallback vector paths for text (opentype.js JSON format or SVG path commands)
-    fallbackPaths?: any[];
+    fallbackPaths?: unknown[];
     style: {
         color: string;
         width: number;
@@ -159,13 +159,13 @@ export class Store extends EventEmitter {
      * This ensures that when we reconcile for undo/redo, remote changes are seen as
      * "already existing" in the past, so they aren't reverted.
      */
-    private injectRemoteAnnotationChange(id: string, data: any, action: 'add' | 'update' | 'delete') {
+    private injectRemoteAnnotationChange(id: string, data: Partial<Annotation> | null, action: 'add' | 'update' | 'delete') {
         const updateStack = (stack: AppState[]) => {
             stack.forEach(snap => {
                 if (action === 'add') {
                     // Avoid dups
                     if (!snap.annotations.some(a => a.id === id)) {
-                        snap.annotations.push({ ...data });
+                        snap.annotations.push(data as Annotation);
                     }
                 } else if (action === 'update') {
                     const idx = snap.annotations.findIndex(a => a.id === id);

@@ -2,40 +2,40 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
-export default defineConfig({
-    base: './',
-    plugins: [react()],
-    resolve: {
-        alias: [
-            { find: '@web-media-annotator/core', replacement: resolve(__dirname, '../core/src/index.ts') },
-            { find: '@web-media-annotator/react', replacement: resolve(__dirname, '../react/src/index.ts') },
-            // Also resolve UI which is used by React
-            { find: '@web-media-annotator/ui', replacement: resolve(__dirname, '../ui/src/index.ts') }
-        ]
-    },
-    build: {
-        emptyOutDir: false, // Keep tsc output
-        lib: {
-            entry: 'src/index.tsx', // Relative path
-            name: 'WebMediaAnnotator',
-            fileName: (format) => `web-media-annotator.${format}.js`
+export default defineConfig(({ mode }) => {
+    const isBundle = mode === 'bundle';
+
+    return {
+        base: './',
+        plugins: [react()],
+        resolve: {
+            alias: [
+                { find: '@web-media-annotator/core', replacement: resolve(__dirname, '../core/src/index.ts') },
+                { find: '@web-media-annotator/react', replacement: resolve(__dirname, '../react/src/index.ts') },
+                { find: '@web-media-annotator/ui', replacement: resolve(__dirname, '../ui/src/index.ts') }
+            ]
         },
-        rollupOptions: {
-            // For a "drop-in" widget, we usually want to bundle React.
-            // If we wanted to exclude it, we would list it here.
-            // external: ['react', 'react-dom'],
-            output: {
-                // Global variables for UMD/IIFE build
-                globals: {
-                    react: 'React',
-                    'react-dom': 'ReactDOM'
+        build: {
+            emptyOutDir: false,
+            lib: {
+                entry: 'src/index.tsx',
+                name: 'WebMediaAnnotator',
+                fileName: (format) => isBundle ? `web-media-annotator.bundle.${format}.js` : `web-media-annotator.${format}.js`
+            },
+            rollupOptions: {
+                // If bundling, don't externalize anything. If library, externalize React.
+                external: isBundle ? [] : ['react', 'react-dom'],
+                output: {
+                    globals: {
+                        react: 'React',
+                        'react-dom': 'ReactDOM'
+                    }
                 }
-            }
+            },
+            cssCodeSplit: false
         },
-        // Ensure CSS is injected or emitted
-        cssCodeSplit: false
-    },
-    define: {
-        'process.env.NODE_ENV': '"production"'
-    }
+        define: {
+            'process.env.NODE_ENV': '"production"'
+        }
+    };
 });

@@ -59,7 +59,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     }, [src, fps, startFrame]);
 
     // Handlers
-    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as any, selectedAnnotationIds: [] });
+    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as AppState['activeTool'], selectedAnnotationIds: [] });
     const handleColorChange = (color: string) => annotatorRef.current?.store.setState({ activeColor: color });
     const handleWidthChange = (width: number) => annotatorRef.current?.store.setState({ activeStrokeWidth: width });
 
@@ -71,7 +71,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
 
     const handleExport = async (composite: boolean) => {
         if (!annotatorRef.current) return;
-        const dataUrl = await annotatorRef.current.renderer.captureFrame({ composite, mediaElement: annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement });
+        const dataUrl = await annotatorRef.current.renderer.captureFrame({ composite, mediaElement: (annotatorRef.current as unknown as { mediaElement: HTMLVideoElement }).mediaElement });
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `frame_${state?.currentFrame}_${composite ? 'comp' : 'anno'}.png`;
@@ -90,9 +90,9 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
             a.download = `annotations_export_${composite ? 'burned' : 'clean'}.zip`;
             a.click();
             URL.revokeObjectURL(url);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Export failed", err);
-            alert("Export failed: " + err.message);
+            if (err instanceof Error) alert("Export failed: " + err.message);
         } finally {
             setExportProgress(null);
         }

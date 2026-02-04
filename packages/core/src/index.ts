@@ -4,7 +4,7 @@
  */
 import { Store, AppState, Annotation } from './Store';
 import { Player } from './Player';
-import { LinkSync } from './LinkSync';
+import { LinkSync, Message } from './LinkSync';
 import { Renderer } from './Renderer';
 import { PluginManager } from './PluginManager';
 import { BaseTool } from './tools/BaseTool';
@@ -103,7 +103,7 @@ export class WebMediaAnnotator {
                             }
                         }
 
-                        const blob = new Blob(chunks as any, { type: response.headers.get('content-type') || 'video/mp4' });
+                        const blob = new Blob(chunks as unknown as BlobPart[], { type: response.headers.get('content-type') || 'video/mp4' });
                         const filename = src.split('/').pop() || `file.${ext}`;
                         const file = new File([blob], filename, { type: blob.type });
                         console.log(`[Core] Download complete (${file.size} bytes). Loading into pipeline...`);
@@ -399,7 +399,7 @@ export class WebMediaAnnotator {
                             // Apply offset if pasting on the SAME frame as original source
                             if (template.frame === currentFrame) {
                                 if (newAnn.points) {
-                                    newAnn.points = newAnn.points.map((p: any) => ({
+                                    newAnn.points = newAnn.points.map((p: { x: number, y: number }) => ({
                                         ...p,
                                         x: p.x + 0.02,
                                         y: p.y + 0.02
@@ -576,12 +576,12 @@ export class WebMediaAnnotator {
                 if (change.action === 'add') {
                     const ann = this.sync.annotationsMap.get(key);
                     if (ann && event.transaction.origin === this.sync) {
-                        this.store.addAnnotation(ann, true);
+                        this.store.addAnnotation(ann as Annotation, true);
                     }
                 } else if (change.action === 'update') {
                     const ann = this.sync.annotationsMap.get(key);
                     if (ann && event.transaction.origin === this.sync) {
-                        this.store.updateAnnotation(key, ann, true);
+                        this.store.updateAnnotation(key, ann as Annotation, true);
                     }
                 } else if (change.action === 'delete') {
                     if (event.transaction.origin === this.sync) {
@@ -598,7 +598,7 @@ export class WebMediaAnnotator {
 
                 // Onion Skin
                 if (event.keysChanged.has('onionSkin')) {
-                    const params = this.sync.sessionMap.get('onionSkin');
+                    const params = this.sync.sessionMap.get('onionSkin') as { enabled: boolean, prev: number, next: number };
                     if (params) {
                         this.store.setState({
                             isOnionSkinEnabled: params.enabled,
@@ -626,7 +626,8 @@ export class WebMediaAnnotator {
     }
 
     private initPlaybackSync() {
-        this.sync.on('playback:change', (msg: any) => {
+        this.sync.on('playback:change', (msg: Message) => {
+            if (msg.type !== 'playback') return; // Type guard check
             this.isRemotePlayback = true;
             if (msg.action === 'play') {
                 this.player.play();
@@ -706,7 +707,7 @@ export class WebMediaAnnotator {
         if (this.mediaElement instanceof HTMLVideoElement || this.mediaElement instanceof HTMLCanvasElement) {
             this.mediaElement.addEventListener('loadedmetadata', onMediaLoad);
             // Also check if already ready (for GifAdapter immediate load)
-            const playable = this.mediaElement as any;
+            const playable = this.mediaElement as unknown as { videoWidth: number, videoHeight: number };
             if (playable.videoWidth && playable.videoHeight) {
                 onMediaLoad();
             }
@@ -737,8 +738,8 @@ export class WebMediaAnnotator {
             mediaH = this.mediaElement.naturalHeight;
         } else if (this.mediaElement instanceof HTMLCanvasElement) {
             // Check for video-like props (GifAdapter) or fall back to canvas dims
-            mediaW = (this.mediaElement as any).videoWidth || this.mediaElement.width;
-            mediaH = (this.mediaElement as any).videoHeight || this.mediaElement.height;
+            mediaW = (this.mediaElement as unknown as { videoWidth: number }).videoWidth || this.mediaElement.width;
+            mediaH = (this.mediaElement as unknown as { videoHeight: number }).videoHeight || this.mediaElement.height;
         }
 
         if (!mediaW || !mediaH) return;

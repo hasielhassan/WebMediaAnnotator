@@ -16,8 +16,8 @@
     },
     "scripts": {
         "build": "tsc && vite build",
-        "build:bundle": "vite build",
-        "lint": "eslint src --ext .ts"
+        "build:bundle": "vite build --mode bundle",
+        "lint": "eslint src"
     },
     "dependencies": {
         "@web-media-annotator/core": "*",

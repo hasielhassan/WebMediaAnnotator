@@ -151,8 +151,8 @@ export class Renderer {
                 height = media.naturalHeight;
             } else if (media instanceof HTMLCanvasElement) {
                 // If it's a GifAdapter canvas, it might have videoWidth
-                width = (media as any).videoWidth || media.width;
-                height = (media as any).videoHeight || media.height;
+                width = (media as unknown as { videoWidth: number }).videoWidth || media.width;
+                height = (media as unknown as { videoHeight: number }).videoHeight || media.height;
             }
         }
 
