@@ -1,6 +1,7 @@
 {
     "name": "@web-media-annotator/react",
     "version": "0.1.0",
+    "license": "MPL-2.0",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",

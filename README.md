@@ -223,5 +223,11 @@ Contributions are welcome! Please focus on the `packages/core` for functional im
 
 ## 📄 License
 
-GPL-3.0 license
+This project is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**.
+
+**Why MPL-2.0?**
+We chose this license specifically to support the Animation and VFX industry pipeline requirements:
+* **Commercial Safe:** Studios can use this tool in commercial pipelines to create content without risking their proprietary IP or pipeline code.
+* **Pipeline Friendly:** Unlike GPL, using this tool in a larger proprietary pipeline does not force you to open-source your entire pipeline.
+* **Open Contribution:** We strongly believe in giving back. Any modifications to the *source code files* of this project must be open-sourced, ensuring the tool evolves for everyone's benefit.
 

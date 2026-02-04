@@ -19,5 +19,5 @@
     "rimraf": "^5.0.0"
   },
   "author": "Hasiel Hassan",
-  "license": "GPLv3"
+  "license": "MPL-2.0"
 }
