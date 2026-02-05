@@ -11,7 +11,7 @@ function App() {
 
             <div className="w-full max-w-5xl aspect-video border border-gray-800 rounded-lg overflow-hidden shadow-2xl">
                 <Annotator
-                    src="./mov_bbb.mp4"
+                    src="/mov_bbb.mp4"
                     fps={24}
                     startFrame={1001} // Example offset
                 />

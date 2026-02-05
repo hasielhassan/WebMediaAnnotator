@@ -145,8 +145,10 @@ export class WebMediaAnnotator {
         this.canvasElement.style.position = 'absolute';
         this.canvasElement.style.top = '0';
         this.canvasElement.style.left = '0';
+        this.canvasElement.style.width = '100%';
+        this.canvasElement.style.height = '100%';
         this.canvasElement.style.pointerEvents = 'auto'; // allow interaction
-        this.canvasElement.style.touchAction = 'none'; // Critical for Pointer Events handling
+        this.canvasElement.style.touchAction = 'none'; // CRITICAL: Prevent scrolling while drawing // Critical for Pointer Events handling
         this.container.appendChild(this.canvasElement);
 
         // 3. Initialize Core
@@ -352,180 +354,8 @@ export class WebMediaAnnotator {
     }
 
     private initShortcuts() {
-        window.addEventListener('keydown', (e) => {
-            // Ignore keystrokes if focused on an input
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-            // Undo/Redo
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z') {
-                    e.preventDefault();
-                    this.store.undo();
-                    return;
-                }
-                if (e.key === 'y') {
-                    e.preventDefault();
-                    this.store.redo();
-                    return;
-                }
-                if (e.key === 'c') {
-                    const state = this.store.getState();
-                    const selIds = state.selectedAnnotationIds;
-
-                    if (selIds.length > 0) {
-                        // 1. Copy selected
-                        const selectedAnns = state.annotations.filter(a => selIds.includes(a.id));
-                        if (selectedAnns.length > 0) {
-                            this.clipboard = JSON.parse(JSON.stringify(selectedAnns));
-                            console.log(`[Clipboard] Copied ${selectedAnns.length} selected annotations.`);
-                        }
-                    } else {
-                        // 2. Copy all anchored on this frame
-                        const frameAnns = state.annotations.filter(a => a.frame === state.currentFrame);
-                        if (frameAnns.length > 0) {
-                            this.clipboard = JSON.parse(JSON.stringify(frameAnns));
-                            console.log(`[Clipboard] Copied ${frameAnns.length} annotations from frame ${state.currentFrame}.`);
-                        }
-                    }
-                    return;
-                }
-                if (e.key === 'v') {
-                    if (this.clipboard && this.clipboard.length > 0) {
-                        const currentFrame = this.store.getState().currentFrame;
-                        const addedIds: string[] = [];
-
-                        this.clipboard.forEach(template => {
-                            const newAnn = JSON.parse(JSON.stringify(template));
-                            newAnn.id = crypto.randomUUID();
-                            newAnn.frame = currentFrame;
-
-                            // Apply offset if pasting on the SAME frame as original source
-                            if (template.frame === currentFrame) {
-                                if (newAnn.points) {
-                                    newAnn.points = newAnn.points.map((p: { x: number, y: number }) => ({
-                                        ...p,
-                                        x: p.x + 0.02,
-                                        y: p.y + 0.02
-                                    }));
-                                }
-                            }
-
-                            this.store.addAnnotation(newAnn);
-                            addedIds.push(newAnn.id);
-                        });
-
-                        // Select the newly added ones
-                        this.store.setState({ selectedAnnotationIds: addedIds });
-
-                        this.store.captureSnapshot();
-                        console.log(`[Clipboard] Pasted ${addedIds.length} annotations.`);
-                    }
-                    return;
-                }
-                // Navigation by Annotated Frames
-                if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    this.player.seekToPrevAnnotation();
-                    return;
-                }
-                if (e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    this.player.seekToNextAnnotation();
-                    return;
-                }
-            }
-
-            switch (e.key.toLowerCase()) {
-                // Toggles & Selection
-                case 'escape':
-                    this.store.setState({ selectedAnnotationIds: [], activeTool: 'select' });
-                    break;
-
-                case 'delete':
-                case 'backspace': {
-                    const selIds = this.store.getState().selectedAnnotationIds;
-                    if (selIds.length > 0) {
-                        selIds.forEach(id => this.store.deleteAnnotation(id));
-                        this.store.setState({ selectedAnnotationIds: [] });
-                        this.store.captureSnapshot();
-                    }
-                    break;
-                }
-
-                // Playback
-                case ' ': // Spacebar
-                    e.preventDefault();
-                    if (this.store.getState().isPlaying) {
-                        this.player.pause();
-                    } else {
-                        this.player.play();
-                    }
-                    break;
-
-                // Navigation (Frame by Frame)
-                case 'arrowleft':
-                    e.preventDefault();
-                    this.player.seekToFrame(this.store.getState().currentFrame - 1);
-                    break;
-                case 'arrowright':
-                    e.preventDefault();
-                    this.player.seekToFrame(this.store.getState().currentFrame + 1);
-                    break;
-
-                // Tools
-                case 's': this.store.setState({ activeTool: 'select' }); break;
-                case 'p': this.store.setState({ activeTool: 'freehand', selectedAnnotationIds: [] }); break;
-                case 'a': this.store.setState({ activeTool: 'arrow', selectedAnnotationIds: [] }); break;
-                case 'c': this.store.setState({ activeTool: 'circle', selectedAnnotationIds: [] }); break;
-                case 'q': this.store.setState({ activeTool: 'square', selectedAnnotationIds: [] }); break;
-                case 't': this.store.setState({ activeTool: 'text', selectedAnnotationIds: [] }); break;
-                case 'e': this.store.setState({ activeTool: 'eraser', selectedAnnotationIds: [] }); break;
-
-                // Toggles
-                case 'g': {
-                    const isCurrentlyEnabled = this.store.getState().isOnionSkinEnabled;
-
-                    if (!isCurrentlyEnabled) {
-                        // Turning ON: Enable ghosting, reset duration to 1
-                        this.store.setState({ isOnionSkinEnabled: true, holdDuration: 1 });
-                    } else {
-                        // Turning OFF
-                        this.store.setState({ isOnionSkinEnabled: false });
-                    }
-                    break;
-                }
-
-                case 'h': {
-                    const currentDur = this.store.getState().holdDuration;
-                    if (currentDur > 1) {
-                        this.store.setState({ holdDuration: 1 });
-                    } else {
-                        // Default to 24 frames (Standard Hold), turn off ghosting
-                        this.store.setState({ holdDuration: 24, isOnionSkinEnabled: false });
-                    }
-                    break;
-                }
-
-                // View
-                case 'r':
-                    this.store.setState({ viewport: { x: 0, y: 0, scale: 1 } });
-                    break;
-
-                // Stroke Width
-                case '=': // + without shift
-                case '+': {
-                    const newWidthInc = Math.min(20, this.store.getState().activeStrokeWidth + 1);
-                    this.store.setState({ activeStrokeWidth: newWidthInc });
-                    break;
-                }
-                case '-':
-                case '_': {
-                    const newWidthDec = Math.max(1, this.store.getState().activeStrokeWidth - 1);
-                    this.store.setState({ activeStrokeWidth: newWidthDec });
-                    break;
-                }
-            }
-        });
+        // Shortcuts are now handled by the React layer (useHotkeys hook) or external consumers.
+        // This method is deprecated and empty to prevent double-binding.
     }
 
     private initSyncBinding() {

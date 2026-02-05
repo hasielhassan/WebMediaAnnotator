@@ -195,10 +195,16 @@ export class Player {
 
     // Public API //
 
-    play() {
+    async play() {
         const playable = this.mediaElement as unknown as HTMLVideoElement;
         if (typeof playable.play === 'function') {
-            playable.play();
+            try {
+                await playable.play();
+            } catch (err) {
+                console.error("[Core] Playback failed:", err);
+                // Optionally set isPlaying to false if it was optimistically set
+                this.store.setState({ isPlaying: false });
+            }
         } else {
             // Image mode fallback
             this.store.setState({ isPlaying: true });

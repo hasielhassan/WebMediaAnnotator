@@ -129,11 +129,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     title={tool.label}
                     onClick={() => onToolSelect(tool.id)}
                     className={clsx(
-                        "p-2 rounded hover:bg-gray-700 text-white transition-colors",
+                        "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors",
                         activeTool === tool.id ? "bg-blue-600 hover:bg-blue-500" : "bg-transparent"
                     )}
                 >
-                    <tool.icon size={20} />
+                    <tool.icon size={24} />
                 </button>
             ))}
 
@@ -146,13 +146,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     <button
                         title="Toggle Global Hold (Hand)"
                         className={clsx(
-                            "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                            "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors relative",
                             (holdDuration || 1) > 1 ? "bg-orange-900/50 text-orange-400" : "bg-transparent text-gray-400"
                         )}
                     >
-                        <Hand size={20} />
+                        <Hand size={24} />
                         {(holdDuration || 1) > 1 && (
-                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
+                            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
                                 {holdDuration}
                             </span>
                         )}
@@ -203,13 +203,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                         <button
                             title="Onion Skin (Ghosting)"
                             className={clsx(
-                                "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                                "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors relative",
                                 isOnionSkinEnabled ? "bg-purple-600 hover:bg-purple-500" : "bg-transparent"
                             )}
                         >
-                            <Ghost size={20} />
+                            <Ghost size={24} />
                             {isOnionSkinEnabled && (
-                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                <span className="absolute top-1 right-1 flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
@@ -275,7 +275,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 trigger={
                     <button
                         title="Stroke Color"
-                        className="relative p-2 rounded hover:bg-gray-700 transition-colors w-10 h-10 flex items-center justify-center"
+                        className="relative h-11 w-11 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center"
                     >
                         <div
                             className="w-6 h-6 rounded-full border border-gray-400"
@@ -324,7 +324,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 trigger={
                     <button
                         title="Stroke Width / Text Size"
-                        className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10"
+                        className="h-11 w-11 rounded-lg hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs"
                     >
                         {activeStrokeWidth}px
                     </button>
@@ -367,7 +367,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     trigger={
                         <button
                             title="New Annotation Duration"
-                            className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10 bg-transparent text-gray-400"
+                            className="h-11 w-11 rounded-lg hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs bg-transparent text-gray-400"
                         >
                             {defaultDuration}fr
                         </button>
