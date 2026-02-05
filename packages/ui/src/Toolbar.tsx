@@ -32,6 +32,7 @@ export interface ToolbarProps {
 
     // Mode
     isImageMode?: boolean;
+    children?: React.ReactNode;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -41,7 +42,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     holdDuration = 1, onHoldDurationChange,
     isOnionSkinEnabled, onToggleOnionSkin,
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange,
-    isImageMode = false
+    isImageMode = false,
+    children
 }) => {
     const tools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
@@ -92,7 +94,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     return (
         <div className={clsx(
             "flex gap-2 p-2 bg-gray-900 border-gray-800",
-            isHorizontal ? "flex-row border-b items-center" : "flex-col border-r",
+            isHorizontal ? "flex-row flex-wrap border-b items-center justify-center" : "flex-col border-r",
             className
         )}>
             <style>{`
@@ -407,15 +409,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 />
             )}
 
+            {/* Separator for Children */}
+            {children && <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />}
+
+            {children}
+
             <div className="flex-1" />
 
             {onClear && (
                 <button
                     title="Clear All"
                     onClick={onClear}
-                    className="p-2 rounded hover:bg-red-900/50 text-red-400 transition-colors"
+                    className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/50 text-red-500 transition-colors"
                 >
-                    <Trash2 size={20} />
+                    <Trash2 size={24} />
                 </button>
             )}
         </div>

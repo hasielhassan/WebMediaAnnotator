@@ -5,9 +5,10 @@ import { SkipBack, ChevronLeft, SkipForward, ChevronRight, Pause, Play, Repeat, 
 export interface AnnotatorControlsProps {
     annotator: WebMediaAnnotator | null;
     state: AppState | null;
+    isMobile?: boolean; // Optional to avoid breaking other consumers
 }
 
-export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator, state }) => {
+export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator, state, isMobile = false }) => {
     const [useTimecode, setUseTimecode] = useState(false);
 
     // Derived
@@ -27,43 +28,47 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
     if ((state?.mediaType as string) === 'image') return null;
 
     return (
-        <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-4 pb-safe">
-            <div className="flex items-center gap-1">
-                <button title="Prev Annotation" onClick={() => annotator?.player.seekToPrevAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipBack size={16} /></button>
-                <button title="Prev Frame" onClick={() => annotator?.player.seekToFrame((state?.currentFrame || 0) - 1)} className="p-1 hover:text-white text-gray-400"><ChevronLeft size={16} /></button>
+        <div className={`bg-gray-900 border-t border-gray-800 flex items-center px-1 py-1 gap-1 shrink-0 z-20 transition-all ${isMobile ? 'flex-wrap min-h-[56px] h-auto content-start justify-between landscape:py-0 landscape:min-h-[48px]' : 'h-14 justify-between'}`}>
 
-                {/* Play/Pause - Clean Style - HIDE FOR IMAGE implicitly handled by parent check but good here too */}
+            {/* 1. Playback Controls */}
+            <div className={`flex items-center gap-1 ${isMobile ? 'order-1' : ''}`}>
+                <button title="Prev Annotation" onClick={() => annotator?.player.seekToPrevAnnotation()} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><SkipBack size={20} /></button>
+                <button title="Prev Frame" onClick={() => annotator?.player.seekToFrame((state?.currentFrame || 0) - 1)} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><ChevronLeft size={20} /></button>
+
+                {/* Play/Pause (highlighted) */}
                 {state?.mediaType === 'video' && (
                     <button
                         onClick={handlePlayPause}
-                        className="w-8 h-8 flex items-center justify-center text-white hover:text-blue-400 mx-2 transition-colors"
+                        className="h-11 w-11 flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
                     >
                         {state?.isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
                     </button>
                 )}
 
-                <button title="Next Frame" onClick={() => annotator?.player.seekToFrame((state?.currentFrame || 0) + 1)} className="p-1 hover:text-white text-gray-400"><ChevronRight size={16} /></button>
-                <button title="Next Annotation" onClick={() => annotator?.player.seekToNextAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipForward size={16} /></button>
+                <button title="Next Frame" onClick={() => annotator?.player.seekToFrame((state?.currentFrame || 0) + 1)} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
+                <button title="Next Annotation" onClick={() => annotator?.player.seekToNextAnnotation()} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><SkipForward size={20} /></button>
 
-                {/* Loop Toggle */}
                 <button
                     title="Toggle Loop"
                     onClick={(e) => {
                         const v = annotator?.['videoElement'];
                         if (v) {
                             v.loop = !v.loop;
-                            (e.currentTarget).classList.toggle('text-blue-500');
-                            (e.currentTarget).classList.toggle('text-gray-400');
+                            // Initial class toggle handled by react state if possible, but here using direct DOM for speed or ref
+                            // Ideally use state. isLooping? Not in AppState yet.
+                            (e.currentTarget as HTMLElement).dataset.active = v.loop ? 'true' : 'false';
+                            // Force re-render or class toggle
                         }
                     }}
-                    className="p-1 ml-2 text-gray-400 hover:text-white"
+                    className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors data-[active=true]:text-blue-400"
                 >
-                    <Repeat size={16} />
+                    <Repeat size={20} />
                 </button>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center">
-                {/* Timeline Slider with Markers */}
+            {/* 2. Timeline (Adaptive Order) */}
+            {/* Desktop: Order 2 (Middle). Mobile Portrait: Order 3 (Bottom, Full Width). Landscape Phone: Middle or Full Width depending on space. */}
+            <div className={`flex flex-col justify-center px-2 ${isMobile ? 'w-full order-3 mt-1 border-t border-gray-800/50 pt-1 landscape:w-auto landscape:flex-1 landscape:order-2 landscape:border-t-0 landscape:pt-0 landscape:mt-0' : 'flex-1 order-2'}`}>
                 {state?.mediaType === 'video' && (
                     <div className="relative w-full h-8 flex items-center group">
                         {/* Markers layer */}
@@ -74,9 +79,7 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
                                     className="absolute top-0 h-full flex flex-col items-center justify-center -translate-x-1/2 z-0 opacity-80"
                                     style={{ left: `${(frame / totalFrames) * 100}%` }}
                                 >
-                                    {/* Triangle Handle */}
                                     <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-yellow-400 mb-0.5" />
-                                    {/* Line */}
                                     <div className="w-0.5 h-full bg-yellow-400/50" />
                                 </div>
                             ))}
@@ -84,7 +87,6 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
 
                         {/* Track Background */}
                         <div className="absolute inset-x-0 h-1 bg-gray-700 rounded-lg overflow-hidden pointer-events-none top-1/2 -translate-y-1/2">
-                            {/* Buffered Ranges */}
                             {state?.buffered?.map((range, i) => (
                                 <div
                                     key={i}
@@ -112,12 +114,13 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
                 )}
             </div>
 
-            {/* Right Side Controls: Volume & Timecode */}
-            <div className="flex items-center gap-2 border-l border-gray-800 pl-4 h-8 ml-2">
+            {/* 3. Volume / Timecode */}
+            {/* Desktop: Order 3. Mobile Portrait: Order 2 (Right of Playback). */}
+            <div className={`flex items-center gap-1 h-11 ${isMobile ? 'order-2 ml-auto landscape:order-3 landscape:ml-0' : 'order-3 ml-2'}`}>
                 {/* Volume */}
-                <div className="relative group flex items-center justify-center h-full w-8">
+                <div className="relative group flex items-center justify-center h-11 w-11 rounded-lg hover:bg-gray-700 transition-colors">
                     <button
-                        className="text-gray-400 hover:text-white"
+                        className="w-full h-full flex items-center justify-center text-gray-400 hover:text-white"
                         onClick={() => {
                             if (annotator) {
                                 const v = annotator['videoElement'];
@@ -126,11 +129,9 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
                             }
                         }}
                     >
-                        {state?.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                        {state?.volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
                     </button>
-
-                    {/* Vertical Slider Popup */}
-                    <div className="hidden group-hover:flex absolute bottom-6 mb-1 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded shadow-2xl flex-col items-center h-32 w-8 z-50">
+                    <div className="hidden group-hover:flex absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded shadow-xl flex-col items-center h-32 w-10 z-[60]">
                         <input
                             type="range"
                             min="0" max="1" step="0.1"
@@ -147,14 +148,12 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
                             style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
                         />
                     </div>
-                    {/* Invisible bridge for hover */}
-                    <div className="hidden group-hover:block absolute bottom-full w-20 h-6 bg-transparent left-1/2 -translate-x-1/2" />
                 </div>
 
-                {/* Timecode Display */}
+                {/* Timecode Toggle */}
                 <button
                     onClick={() => setUseTimecode(!useTimecode)}
-                    className="font-mono text-xs w-28 text-right hover:text-blue-400 transition-colors"
+                    className="h-11 px-2 font-mono text-xs text-right hover:text-blue-400 transition-colors flex items-center justify-center min-w-[80px]"
                 >
                     {useTimecode
                         ? Player.frameToTimecode(state?.currentFrame || 0, state?.fps || 24)
@@ -162,6 +161,7 @@ export const AnnotatorControls: React.FC<AnnotatorControlsProps> = ({ annotator,
                     }
                 </button>
             </div>
+
         </div>
     );
 };

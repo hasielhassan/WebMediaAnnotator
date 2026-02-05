@@ -8,6 +8,7 @@ export interface AnnotatorToolbarProps {
     className?: string;
     orientation?: 'horizontal' | 'vertical';
     isMobile?: boolean;
+    children?: React.ReactNode;
 }
 
 export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
@@ -16,7 +17,8 @@ export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
     className,
     orientation = 'horizontal',
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    isMobile = false
+    isMobile = false,
+    children
 }) => {
     // Handlers
     const handleToolSelect = (tool: string) => annotator?.store.setState({ activeTool: tool as AppState['activeTool'], selectedAnnotationIds: [] });
@@ -67,6 +69,8 @@ export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
             onionSkinNextFrames={state?.onionSkinNextFrames}
             onOnionSkinSettingsChange={handleOnionSkinSettingsChange}
             isImageMode={(state?.mediaType as string) === 'image'}
-        />
+        >
+            {children}
+        </Toolbar>
     );
 };

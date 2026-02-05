@@ -33,7 +33,9 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     const [state, setState] = useState<AppState | null>(null);
 
     // Derived States for UI
+    // Remove max-height check so high-res landscape phones (Pixel 7, iPhone Max) use Desktop layout (saving vertical space)
     const isMobile = useMediaQuery('(max-width: 768px)');
+    const isTouch = useMediaQuery('(pointer: coarse)');
 
     // IO Hook
     const {
@@ -74,7 +76,9 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         };
     }, [src, fps, startFrame]);
 
-    // Enable hotkeys
+    // Enable hotkeys: Disable if touch/mobile to prevent virtual keyboard interference? 
+    // Actually user said remove Info button. Hotkeys might still be useful if they use a bluetooth keyboard on iPad.
+    // So keep hotkeys enabled, just hide the visual Info helper.
     useHotkeys(annotatorRef.current, true);
 
     // Handlers
@@ -155,87 +159,80 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
 
     return (
         <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height, overflow: 'hidden' }}>
+            <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             {/* Top Toolbar Area */}
-            <div className={`flex flex-row items-center bg-gray-900 border-b border-gray-800 ${isMobile ? 'justify-between px-2 h-14' : ''}`}>
+            <div className={`flex flex-row flex-wrap items-center bg-gray-900 border-b border-gray-800 shrink-0 gap-x-2 gap-y-2 px-2 py-2 min-h-[56px] h-auto justify-start`}>
 
-                {/* Mobile Menu Trigger / Logo Placeholder */}
-                {isMobile && (
-                    <div className="font-bold text-gray-400 text-sm">Web Annotator</div>
-                )}
+                {!isMobile && !isTouch && (
+                    <div className="flex items-center">
+                        <Popover
+                            side="bottom"
+                            align="start"
+                            trigger={
+                                <button title="Shortcuts Info" className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors">
+                                    <Info size={24} />
+                                </button>
+                            }
+                            content={
+                                <div className="w-64 p-2 text-xs">
+                                    <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
+                                    <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
+                                        <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
+                                        <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
+                                        <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
+                                        <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
+                                        <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
+                                        <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
+                                        <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
 
-                <div className="pl-2">
-                    <Popover
-                        side="bottom"
-                        align="start"
-                        trigger={
-                            <button title="Shortcuts Info" className="p-2 text-gray-400 hover:text-blue-400 transition-colors">
-                                <Info size={20} />
-                            </button>
-                        }
-                        content={
-                            <div className="w-64 p-2 text-xs">
-                                <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
-                                <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
-                                    <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
-                                    <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
-                                    <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
-                                    <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
-                                    <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
-                                    <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
-                                    <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
+                                        <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
+                                        <span>Select</span> <span className="font-mono text-gray-500">S</span>
+                                        <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
+                                        <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
+                                        <span>Circle</span> <span className="font-mono text-gray-500">C</span>
+                                        <span>Square</span> <span className="font-mono text-gray-500">Q</span>
+                                        <span>Text</span> <span className="font-mono text-gray-500">T</span>
+                                        <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
+                                        <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
+                                        <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
 
-                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
-                                    <span>Select</span> <span className="font-mono text-gray-500">S</span>
-                                    <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
-                                    <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
-                                    <span>Circle</span> <span className="font-mono text-gray-500">C</span>
-                                    <span>Square</span> <span className="font-mono text-gray-500">Q</span>
-                                    <span>Text</span> <span className="font-mono text-gray-500">T</span>
-                                    <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
-                                    <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
-                                    <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
-
-                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
-                                    <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
-                                    <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
-                                    <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
-                                    <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
+                                        <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
+                                        <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
+                                        <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
+                                        <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
+                                        <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
+                                    </div>
                                 </div>
-                            </div>
-                        }
-                    />
-                </div>
-
-                {!isMobile && (
-                    <AnnotatorToolbar
-                        annotator={annotatorRef.current}
-                        state={state}
-                        className="border-0 bg-transparent flex-1"
-                        orientation="horizontal"
-                    />
+                            }
+                        />
+                    </div>
                 )}
 
-                <div className={`flex gap-2 px-2 items-center ${!isMobile ? 'border-l border-gray-800' : ''} h-10`}>
-                    <button title="Undo" onClick={handleUndo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Undo2 size={16} /></button>
-                    <button title="Redo" onClick={handleRedo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Redo2 size={16} /></button>
-                </div>
+                <AnnotatorToolbar
+                    annotator={annotatorRef.current}
+                    state={state}
+                    className="border-0 bg-transparent flex-1 justify-center min-w-0"
+                    orientation="horizontal"
+                    isMobile={isMobile}
+                >
+                    {/* Injected System Tools */}
+                    <button title="Undo" onClick={handleUndo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Undo2 size={24} /></button>
+                    <button title="Redo" onClick={handleRedo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Redo2 size={24} /></button>
 
-                <div className={`flex px-2 items-center ${!isMobile ? 'border-l border-gray-800' : ''} h-10`}>
-                    <SyncPanel annotator={annotatorRef.current} />
-                </div>
+                    <div className="flex items-center">
+                        <SyncPanel annotator={annotatorRef.current} />
+                    </div>
 
-                {/* Export / Import Menu */}
-                <div className={`flex px-2 items-center ${!isMobile ? 'border-l border-gray-800 mr-2' : ''} h-10`}>
                     <Popover
                         side="bottom"
                         align="end"
                         trigger={
                             <button
                                 title="Import / Export"
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs font-medium transition-colors"
+                                className="h-11 px-3 flex items-center gap-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
                             >
-                                <Download size={14} />
-                                <span>Export</span>
+                                <Download size={18} />
+                                <span className="hidden sm:inline">Export</span>
                             </button>
                         }
                         content={
@@ -298,21 +295,17 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                             </div>
                         }
                     />
-                </div>
 
-                <div className="flex gap-2 items-center">
                     <button
                         title="Clear Current Frame"
                         onClick={() => {
-                            // Find annotations on current frame and delete them
-                            // Ideally Store needs a method, but for now filtering:
                             const current = state?.currentFrame || 0;
                             const keep = state?.annotations.filter(a => a.frame !== current) || [];
                             annotatorRef.current?.store.setState({ annotations: keep });
                         }}
-                        className="p-2 rounded hover:bg-red-900/30 text-red-300 transition-colors"
+                        className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/30 text-red-300 transition-colors"
                     >
-                        <Eraser size={20} />
+                        <Eraser size={24} />
                     </button>
 
                     <button
@@ -322,11 +315,11 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                 annotatorRef.current?.store.setState({ annotations: [] });
                             }
                         }}
-                        className="p-2 rounded hover:bg-red-900/50 text-red-500 transition-colors"
+                        className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/50 text-red-500 transition-colors"
                     >
-                        <Trash2 size={20} />
+                        <Trash2 size={24} />
                     </button>
-                </div>
+                </AnnotatorToolbar>
             </div>
 
             <AnnotatorCanvas
@@ -338,20 +331,8 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
             <AnnotatorControls
                 annotator={annotatorRef.current}
                 state={state}
+                isMobile={isMobile}
             />
-
-            {/* Mobile Bottom Toolbar */}
-            {isMobile && (
-                <div className="bg-gray-900 border-t border-gray-800 overflow-x-auto pb-safe">
-                    <AnnotatorToolbar
-                        annotator={annotatorRef.current}
-                        state={state}
-                        className="border-0 bg-transparent min-w-max px-4"
-                        orientation="horizontal"
-                        isMobile={true}
-                    />
-                </div>
-            )}
 
             {/* Export Progress Overlay */}
             {exportProgress && (
