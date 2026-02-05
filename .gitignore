@@ -5,7 +5,7 @@ node_modules/
 dist/
 build/
 out/
-public/
+/public/
 *.tsbuildinfo
 
 # Logs

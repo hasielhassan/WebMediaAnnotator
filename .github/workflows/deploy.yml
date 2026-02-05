@@ -64,6 +64,11 @@ jobs:
           mkdir public/demo
           cp -r apps/demo/dist/* public/demo/
           
+          # 2b. DISTRIBUTE PUBLIC ASSETS TO DEMO SUBFOLDER
+          if [ -d "apps/demo/public" ]; then
+            cp -r apps/demo/public/* public/demo/
+          fi
+          
           # 3. STATIC DEMO (Root app.html)
           cp apps/demo/static-test.html public/app.html
           

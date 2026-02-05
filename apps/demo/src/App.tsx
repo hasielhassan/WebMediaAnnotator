@@ -4,6 +4,7 @@
  */
 import { Annotator } from '@web-media-annotator/react';
 import { PolyLinePlugin } from '@web-media-annotator/core';
+import videoSrc from '../public/mov_bbb.mp4';
 
 function App() {
     return (
@@ -18,7 +19,7 @@ function App() {
             <main className="flex-1 relative w-full h-full flex flex-col items-center justify-center p-0 lg:p-4 xl:p-6">
                 <div className="w-full h-full lg:w-full lg:h-full lg:max-w-6xl lg:aspect-video aspect-[9/16] lg:aspect-auto border-0 lg:border border-gray-800 lg:rounded-lg overflow-hidden shadow-2xl bg-black relative">
                     <Annotator
-                        src="/mov_bbb.mp4"
+                        src={videoSrc}
                         fps={24}
                         startFrame={1001}
                         className="w-full h-full absolute inset-0"
@@ -31,7 +32,7 @@ function App() {
 
             {/* Footer / Instructions - Hidden on mobile */}
             <p className="hidden lg:block text-center p-4 text-gray-500 text-sm shrink-0">
-                Tools: Select (S), Pencil (P), Shape (Q/C/A). Controls: Space (Play/Pause), Arrows (Frame Step).
+                Tools: Select (S), Pencil (P), Shape (Q/C/A), Waypoints (W). Controls: Space (Play/Pause), Arrows (Frame Step).
             </p>
         </div>
     );
