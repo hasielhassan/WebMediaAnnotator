@@ -11,6 +11,7 @@ export type ToolFactory = (core: WebMediaAnnotator) => BaseTool;
 export interface ToolMetadata {
     label: string;
     shortcut?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon?: string | any; // String identifier OR a Component (e.g. React Functional Component)
     section?: 'main' | 'shapes' | 'utility'; // Optional grouping
 }

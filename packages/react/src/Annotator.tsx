@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { WebMediaAnnotator, MediaRegistry } from '@web-media-annotator/core';
-import type { AppState } from '@web-media-annotator/core';
+
 import { Popover, ExportProgress } from '@web-media-annotator/ui';
 import { Undo2, Redo2, Download, Trash2, Eraser, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { SyncPanel } from './SyncPanel';

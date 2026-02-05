@@ -11,7 +11,7 @@ import { PluginManager } from './PluginManager';
 import { InputManager, NormalizedPointerEvent } from './InputManager';
 import { ToolRegistry } from './ToolRegistry';
 import { CoreToolsPlugin } from './plugins/CoreToolsPlugin';
-import { BaseTool } from './tools/BaseTool';
+
 import JSZip from 'jszip';
 import { MediaRegistry } from './MediaRegistry';
 // import { MediaAdapter } from './adapters/MediaAdapter';
@@ -617,3 +617,4 @@ export * from './MediaRegistry';
 export * from './InputManager';
 export * from './plugins/examples/PolyLinePlugin';
 export * from './plugins/examples/PolyLineTool';
+export * from './tools/BaseTool';

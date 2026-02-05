@@ -49,13 +49,12 @@ export class PolyLineTool extends BaseTool {
         }
     }
 
-    onMouseMove(x: number, y: number, e: PointerEvent): void {
-        if (!this.isDrawing || !this.tempId) return;
-
-        // Visualize preview segment: The last REAL point to Cursor.
-        // We append cursor position as a transient point at the end.
-        const previewPoints = [...this.points, { x, y }];
-        this.store.updateAnnotation(this.tempId, { points: previewPoints });
+    onMouseMove(x: number, y: number, _e: PointerEvent): void {
+        if (this.isDrawing) {
+            // Preview next line segment
+            const preview = [...this.points, { x, y }];
+            this.store.updateAnnotation(this.tempId!, { points: preview });
+        }
     }
 
     onMouseUp(x: number, y: number, e: PointerEvent): void {
