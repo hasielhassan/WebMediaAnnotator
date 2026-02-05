@@ -1,5 +1,12 @@
 import React from 'react';
-import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Ghost, Hand, Grab } from 'lucide-react';
+import {
+    MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Ghost, Hand, Grab, Waypoints, MoveUpRight,
+    Triangle, Star, Hexagon, Diamond, Cloud, MessageSquare, Highlighter,
+    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize, Minimize,
+    Copy, Clipboard, Scissors, Save, FolderOpen, Settings, Layers, Grid, Ruler, ZoomIn, ZoomOut,
+    ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+    Ticket // Example generic
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { Popover } from './Popover';
 
@@ -33,9 +40,46 @@ export interface ToolbarProps {
     // Mode
     isImageMode?: boolean;
     isMobile?: boolean; // New prop for wrapping behavior
+    // Tool Definitions
+    tools?: { id: string, label: string, icon: React.ElementType | string }[];
     children?: React.ReactNode;
     prefix?: React.ReactNode;
 }
+
+const ICON_MAP: Record<string, React.ElementType> = {
+    'mouse-pointer': MousePointer2,
+    'pencil': Pencil,
+    'circle': Circle,
+    'square': Square,
+    'arrow': MoveRight,
+    'type': Type,
+    'eraser': Eraser,
+    'trash': Trash2,
+    'ghost': Ghost,
+    'hand': Hand,
+    'grab': Grab,
+    'waypoints': Waypoints,
+    'move-up-right': MoveUpRight,
+    'arrow-right': MoveRight, // Alias fallback
+
+    // Shapes
+    'triangle': Triangle, 'star': Star, 'hexagon': Hexagon, 'diamond': Diamond,
+    'cloud': Cloud, 'comment': MessageSquare, 'highlighter': Highlighter,
+
+    // Media
+    'play': Play, 'pause': Pause, 'skip-forward': SkipForward, 'skip-back': SkipBack,
+    'volume': Volume2, 'mute': VolumeX, 'maximize': Maximize, 'minimize': Minimize,
+
+    // Utility
+    'copy': Copy, 'paste': Clipboard, 'cut': Scissors, 'save': Save, 'open': FolderOpen,
+    'settings': Settings, 'layers': Layers, 'grid': Grid, 'ruler': Ruler,
+    'zoom-in': ZoomIn, 'zoom-out': ZoomOut,
+    'ticket': Ticket,
+
+    // Navigation
+    'up': ArrowUp, 'down': ArrowDown, 'left': ArrowLeft, 'right': ArrowRight,
+    'chevron-up': ChevronUp, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft, 'chevron-right': ChevronRight,
+};
 
 export const Toolbar: React.FC<ToolbarProps> = ({
     activeTool, onToolSelect, onClear, className, orientation = 'vertical',
@@ -46,10 +90,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange,
     isImageMode = false,
     isMobile = false,
+    tools: providedTools, // [NEW] dynamic tools
     children,
     prefix
 }) => {
-    const tools = [
+    // Default fallback if not provided (though we expect dynamic ones now)
+    const defaultTools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
         { id: 'pan', icon: Grab, label: 'Pan (Grab)' },
         { id: 'freehand', icon: Pencil, label: 'Pencil' },
@@ -59,6 +105,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { id: 'text', icon: Type, label: 'Text' },
         { id: 'eraser', icon: Eraser, label: 'Eraser' },
     ];
+
+    const toolsToRender = providedTools || defaultTools;
 
     const colors = ['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
 
@@ -129,19 +177,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
             {prefix}
 
-            {tools.map(tool => (
-                <button
-                    key={tool.id}
-                    title={tool.label}
-                    onClick={() => onToolSelect(tool.id)}
-                    className={clsx(
-                        "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors",
-                        activeTool === tool.id ? "bg-blue-600 hover:bg-blue-500" : "bg-transparent"
-                    )}
-                >
-                    <tool.icon size={24} />
-                </button>
-            ))}
+            {toolsToRender.map(tool => {
+                const Icon = typeof tool.icon === 'string' ? (ICON_MAP[tool.icon] || MousePointer2) : tool.icon;
+                return (
+                    <button
+                        key={tool.id}
+                        title={tool.label}
+                        onClick={() => onToolSelect(tool.id)}
+                        className={clsx(
+                            "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors",
+                            activeTool === tool.id ? "bg-blue-600 hover:bg-blue-500" : "bg-transparent"
+                        )}
+                    >
+                        <Icon size={24} />
+                    </button>
+                );
+            })}
 
             <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />
 

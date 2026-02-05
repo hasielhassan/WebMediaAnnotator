@@ -3,6 +3,7 @@
  * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 import { Annotator } from '@web-media-annotator/react';
+import { PolyLinePlugin } from '@web-media-annotator/core';
 
 function App() {
     return (
@@ -21,6 +22,9 @@ function App() {
                         fps={24}
                         startFrame={1001}
                         className="w-full h-full absolute inset-0"
+                        onReady={(core) => {
+                            core.plugins.register(PolyLinePlugin);
+                        }}
                     />
                 </div>
             </main>

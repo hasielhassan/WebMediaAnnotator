@@ -20,6 +20,7 @@ export interface AnnotatorProps {
     height?: string | number;
     className?: string;
     preload?: 'auto' | 'metadata' | 'force-download';
+    onReady?: (instance: WebMediaAnnotator) => void;
 }
 
 export interface AnnotatorRef {
@@ -27,7 +28,7 @@ export interface AnnotatorRef {
 }
 
 export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
-    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload
+    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload, onReady
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +40,13 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         startFrame,
         preload
     });
+
+    // Notify parent when ready
+    useEffect(() => {
+        if (instance && onReady) {
+            onReady(instance);
+        }
+    }, [instance, onReady]);
 
     // Derived States for UI
     // Remove max-height check so high-res landscape phones (Pixel 7, iPhone Max) use Desktop layout (saving vertical space)
@@ -176,13 +184,14 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                                             <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
 
                                             <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
-                                            <span>Select</span> <span className="font-mono text-gray-500">S</span>
-                                            <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
-                                            <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
-                                            <span>Circle</span> <span className="font-mono text-gray-500">C</span>
-                                            <span>Square</span> <span className="font-mono text-gray-500">Q</span>
-                                            <span>Text</span> <span className="font-mono text-gray-500">T</span>
-                                            <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
+                                            {instance?.toolRegistry.getAllDefinitions().map(def => (
+                                                <React.Fragment key={def.name}>
+                                                    <span>{def.metadata.label}</span>
+                                                    <span className="font-mono text-gray-500">{def.metadata.shortcut || '-'}</span>
+                                                </React.Fragment>
+                                            ))}
+
+                                            {/* System Toggles */}
                                             <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
                                             <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
 

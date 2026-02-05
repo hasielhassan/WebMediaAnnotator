@@ -9,14 +9,9 @@ import { LinkSync, Message } from './LinkSync';
 import { Renderer } from './Renderer';
 import { PluginManager } from './PluginManager';
 import { InputManager, NormalizedPointerEvent } from './InputManager';
+import { ToolRegistry } from './ToolRegistry';
+import { CoreToolsPlugin } from './plugins/CoreToolsPlugin';
 import { BaseTool } from './tools/BaseTool';
-import { FreehandTool } from './tools/FreehandTool';
-import { ShapeTool } from './tools/ShapeTool';
-import { SelectTool } from './tools/SelectTool';
-import { TextTool } from './tools/TextTool';
-import { EraserTool } from './tools/EraserTool';
-import { EyeDropperTool } from './tools/EyeDropperTool';
-import { PanTool } from './tools/PanTool';
 import JSZip from 'jszip';
 import { MediaRegistry } from './MediaRegistry';
 // import { MediaAdapter } from './adapters/MediaAdapter';
@@ -28,10 +23,9 @@ export class WebMediaAnnotator {
     public renderer: Renderer;
     public plugins: PluginManager;
     public registry: MediaRegistry;
+    public toolRegistry: ToolRegistry; // [NEW] Registry
     public inputManager: InputManager | null = null;
 
-    // Tools
-    private tools: Map<string, BaseTool> = new Map();
     private canvasElement: HTMLCanvasElement;
 
     // DOM
@@ -43,6 +37,11 @@ export class WebMediaAnnotator {
         // Fallback or throw? For strict compat, maybe return a dummy or cast. 
         // But better to let it fail if used incorrectly in Image mode.
         return this.mediaElement as unknown as HTMLVideoElement;
+    }
+
+    // [NEW] Public Accessor for Plugins (e.g. EyeDropper)
+    public get media(): HTMLVideoElement | HTMLImageElement | HTMLCanvasElement {
+        return this.mediaElement;
     }
 
     // State for temporary tool switching
@@ -62,6 +61,7 @@ export class WebMediaAnnotator {
 
         // 1. Initialize Registry
         this.registry = new MediaRegistry();
+        this.toolRegistry = new ToolRegistry(this);
 
         // 2. Handle Initial Option
         if (options.videoSrc) {
@@ -165,53 +165,9 @@ export class WebMediaAnnotator {
         this.plugins = new PluginManager(this);
 
 
-        // 4. Initialize Tools
-        this.tools.set('select', new SelectTool(this));
-        this.tools.set('freehand', new FreehandTool(this));
-        this.tools.set('square', new ShapeTool(this, 'square'));
-        this.tools.set('circle', new ShapeTool(this, 'circle'));
-        this.tools.set('arrow', new ShapeTool(this, 'arrow'));
-        this.tools.set('text', new TextTool(this));
-        this.tools.set('eraser', new EraserTool(this));
-        this.tools.set('pan', new PanTool(this));
 
-        this.tools.set('eyedropper', new EyeDropperTool(this, (x: number, y: number) => {
-            // Pick color logic
-            if (!this.mediaElement) return;
-
-            // Ensure media is ready
-            let width = 0;
-            let height = 0;
-
-            if (this.mediaElement instanceof HTMLVideoElement) {
-                width = this.mediaElement.videoWidth;
-                height = this.mediaElement.videoHeight;
-            } else if (this.mediaElement instanceof HTMLImageElement) {
-                width = this.mediaElement.naturalWidth;
-                height = this.mediaElement.naturalHeight;
-            } else if (this.mediaElement instanceof HTMLCanvasElement) {
-                width = this.mediaElement.width;
-                height = this.mediaElement.height;
-            }
-
-            if (!width || !height) return;
-
-            // Draw video/image frame to offscreen canvas
-            const offscreen = document.createElement('canvas');
-            offscreen.width = width;
-            offscreen.height = height;
-            const ctx = offscreen.getContext('2d');
-            if (ctx) {
-                // drawImage supports video, image, and canvas
-                ctx.drawImage(this.mediaElement, 0, 0);
-                const pxX = Math.floor(x * offscreen.width);
-                const pxY = Math.floor(y * offscreen.height);
-                const pixel = ctx.getImageData(pxX, pxY, 1, 1).data;
-                const hex = "#" + ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1);
-
-                this.store.setState({ activeColor: hex, activeTool: 'freehand' }); // Auto switch back to brush
-            }
-        }));
+        // 4. Initialize Tools (Plugin Driven)
+        this.plugins.register(CoreToolsPlugin);
 
         this.initInputManager();
         this.initShortcuts();
@@ -233,17 +189,17 @@ export class WebMediaAnnotator {
             callbacks: {
                 onInteractionStart: (e: NormalizedPointerEvent) => {
                     const toolName = this.store.getState().activeTool;
-                    const tool = this.tools.get(toolName);
+                    const tool = this.toolRegistry.get(toolName);
                     if (tool) tool.onMouseDown(e.x, e.y, e.originalEvent);
                 },
                 onInteractionMove: (e: NormalizedPointerEvent) => {
                     const toolName = this.store.getState().activeTool;
-                    const tool = this.tools.get(toolName);
+                    const tool = this.toolRegistry.get(toolName);
                     if (tool) tool.onMouseMove(e.x, e.y, e.originalEvent);
                 },
                 onInteractionEnd: (e: NormalizedPointerEvent) => {
                     const toolName = this.store.getState().activeTool;
-                    const tool = this.tools.get(toolName);
+                    const tool = this.toolRegistry.get(toolName);
                     if (tool) tool.onMouseUp(e.x, e.y, e.originalEvent);
                 },
                 onPinchZoom: (scale: number) => {
@@ -264,11 +220,11 @@ export class WebMediaAnnotator {
                     this.previousTool = this.store.getState().activeTool;
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     this.store.setState({ activeTool: 'pan' as any });
-                    const panTool = this.tools.get('pan');
+                    const panTool = this.toolRegistry.get('pan');
                     if (panTool) panTool.onMouseDown(e.x, e.y, e.originalEvent);
                 },
                 onMiddleMouseUp: (e: NormalizedPointerEvent) => {
-                    const panTool = this.tools.get('pan');
+                    const panTool = this.toolRegistry.get('pan');
                     if (panTool) panTool.onMouseUp(e.x, e.y, e.originalEvent);
 
                     if (this.previousTool) {
@@ -659,3 +615,5 @@ export * from './Renderer';
 export * from './PluginManager';
 export * from './MediaRegistry';
 export * from './InputManager';
+export * from './plugins/examples/PolyLinePlugin';
+export * from './plugins/examples/PolyLineTool';

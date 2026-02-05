@@ -1,11 +1,17 @@
 import { EventEmitter } from 'eventemitter3';
 
+export interface Point {
+    x: number;
+    y: number;
+    p?: number;
+}
+
 export interface Annotation {
     id: string;
     frame: number; // Start frame
     duration?: number; // Duration in frames (default 1)
-    type: 'freehand' | 'arrow' | 'circle' | 'square' | 'text';
-    points?: { x: number; y: number; p?: number }[]; // For freehand/polygons
+    type: 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'polyline';
+    points?: Point[]; // For freehand/polygons
     text?: string;
     // Fallback vector paths for text (opentype.js JSON format or SVG path commands)
     fallbackPaths?: unknown[];
@@ -22,6 +28,7 @@ export interface Annotation {
         scaleY: number;
         rotation: number;
     };
+    timestamp?: number;
 }
 
 export interface AppState {
@@ -38,7 +45,7 @@ export interface AppState {
     selectedAnnotationIds: string[];
 
     // Editor State
-    activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan';
+    activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan' | 'polyline' | string;
     activeColor: string;
     activeStrokeWidth: number;
     defaultDuration: number; // For new annotations (Property)

@@ -255,6 +255,20 @@ export class Renderer {
                         radius1 = radius2;
                     }
                 }
+            } else if (annotation.type === 'polyline' && annotation.points) {
+                if (annotation.points.length > 0) {
+                    const points = annotation.points;
+                    ctx.beginPath();
+                    // Draw connected lines
+                    ctx.moveTo(points[0].x * effWidth, points[0].y * height);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x * effWidth, points[i].y * height);
+                    }
+                    // Visual feedback for "open" polygon/polyline
+                    ctx.stroke();
+
+                    // Draw points if selected? No, keeping it clean.
+                }
             } else if (annotation.type === 'square' && annotation.points && annotation.points.length >= 2) {
                 const p1 = annotation.points[0];
                 const p2 = annotation.points[1];

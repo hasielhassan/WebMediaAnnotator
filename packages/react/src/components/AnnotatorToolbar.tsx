@@ -47,6 +47,16 @@ export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
     const handleOnionSkinSettingsChange = (prev: number, next: number) =>
         annotator?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next });
 
+    // Dynamic Tool Definitions
+    const toolDefinitions = React.useMemo(() => {
+        if (!annotator) return undefined;
+        return annotator.toolRegistry.getAllDefinitions().map(def => ({
+            id: def.name,
+            label: def.metadata.label,
+            icon: def.metadata.icon || 'mouse-pointer'
+        }));
+    }, [annotator, state]); // Re-compute if annotator changes (or if we had a registry listener)
+
     return (
         <Toolbar
             orientation={orientation}
@@ -72,6 +82,7 @@ export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
             isImageMode={(state?.mediaType as string) === 'image'}
             isMobile={isMobile}
             prefix={prefix}
+            tools={toolDefinitions}
         >
             {children}
         </Toolbar>
