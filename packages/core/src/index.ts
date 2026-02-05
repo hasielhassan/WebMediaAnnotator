@@ -2,22 +2,19 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
-import { Store, AppState, Annotation } from './Store';
+import { Store, Annotation } from './Store';
+// import { AppState } from './Store';
 import { Player } from './Player';
-import { LinkSync } from './LinkSync';
+import { LinkSync, Message } from './LinkSync';
 import { Renderer } from './Renderer';
 import { PluginManager } from './PluginManager';
-import { BaseTool } from './tools/BaseTool';
-import { FreehandTool } from './tools/FreehandTool';
-import { ShapeTool } from './tools/ShapeTool';
-import { SelectTool } from './tools/SelectTool';
-import { TextTool } from './tools/TextTool';
-import { EraserTool } from './tools/EraserTool';
-import { EyeDropperTool } from './tools/EyeDropperTool';
-import { PanTool } from './tools/PanTool';
+import { InputManager, NormalizedPointerEvent } from './InputManager';
+import { ToolRegistry } from './ToolRegistry';
+import { CoreToolsPlugin } from './plugins/CoreToolsPlugin';
+
 import JSZip from 'jszip';
 import { MediaRegistry } from './MediaRegistry';
-import { MediaAdapter } from './adapters/MediaAdapter';
+// import { MediaAdapter } from './adapters/MediaAdapter';
 
 export class WebMediaAnnotator {
     public store: Store;
@@ -26,9 +23,9 @@ export class WebMediaAnnotator {
     public renderer: Renderer;
     public plugins: PluginManager;
     public registry: MediaRegistry;
+    public toolRegistry: ToolRegistry; // [NEW] Registry
+    public inputManager: InputManager | null = null;
 
-    // Tools
-    private tools: Map<string, BaseTool> = new Map();
     private canvasElement: HTMLCanvasElement;
 
     // DOM
@@ -40,6 +37,11 @@ export class WebMediaAnnotator {
         // Fallback or throw? For strict compat, maybe return a dummy or cast. 
         // But better to let it fail if used incorrectly in Image mode.
         return this.mediaElement as unknown as HTMLVideoElement;
+    }
+
+    // [NEW] Public Accessor for Plugins (e.g. EyeDropper)
+    public get media(): HTMLVideoElement | HTMLImageElement | HTMLCanvasElement {
+        return this.mediaElement;
     }
 
     // State for temporary tool switching
@@ -59,6 +61,7 @@ export class WebMediaAnnotator {
 
         // 1. Initialize Registry
         this.registry = new MediaRegistry();
+        this.toolRegistry = new ToolRegistry(this);
 
         // 2. Handle Initial Option
         if (options.videoSrc) {
@@ -83,9 +86,9 @@ export class WebMediaAnnotator {
                         const response = await fetch(src);
                         if (!response.ok) throw new Error(`Failed to fetch ${src}: ${response.statusText}`);
 
-                        const contentLength = response.headers.get('content-length');
-                        const total = contentLength ? parseInt(contentLength, 10) : 0;
-                        let loaded = 0;
+                        // const contentLength = response.headers.get('content-length');
+                        // const total = contentLength ? parseInt(contentLength, 10) : 0;
+                        // let loaded = 0;
 
                         const reader = response.body?.getReader();
                         const chunks: Uint8Array[] = [];
@@ -96,14 +99,14 @@ export class WebMediaAnnotator {
                                 if (done) break;
                                 if (value) {
                                     chunks.push(value);
-                                    loaded += value.length;
+                                    // loaded += value.length;
                                     // Optional: Dispatch event for UI
                                     // if (total) console.log(`Loading: ${Math.round(loaded/total*100)}%`);
                                 }
                             }
                         }
 
-                        const blob = new Blob(chunks as any, { type: response.headers.get('content-type') || 'video/mp4' });
+                        const blob = new Blob(chunks as unknown as BlobPart[], { type: response.headers.get('content-type') || 'video/mp4' });
                         const filename = src.split('/').pop() || `file.${ext}`;
                         const file = new File([blob], filename, { type: blob.type });
                         console.log(`[Core] Download complete (${file.size} bytes). Loading into pipeline...`);
@@ -144,8 +147,10 @@ export class WebMediaAnnotator {
         this.canvasElement.style.position = 'absolute';
         this.canvasElement.style.top = '0';
         this.canvasElement.style.left = '0';
+        this.canvasElement.style.width = '100%';
+        this.canvasElement.style.height = '100%';
         this.canvasElement.style.pointerEvents = 'auto'; // allow interaction
-        this.canvasElement.style.touchAction = 'none'; // Critical for Pointer Events handling
+        this.canvasElement.style.touchAction = 'none'; // CRITICAL: Prevent scrolling while drawing // Critical for Pointer Events handling
         this.container.appendChild(this.canvasElement);
 
         // 3. Initialize Core
@@ -160,55 +165,11 @@ export class WebMediaAnnotator {
         this.plugins = new PluginManager(this);
 
 
-        // 4. Initialize Tools
-        this.tools.set('select', new SelectTool(this));
-        this.tools.set('freehand', new FreehandTool(this));
-        this.tools.set('square', new ShapeTool(this, 'square'));
-        this.tools.set('circle', new ShapeTool(this, 'circle'));
-        this.tools.set('arrow', new ShapeTool(this, 'arrow'));
-        this.tools.set('text', new TextTool(this));
-        this.tools.set('eraser', new EraserTool(this));
-        this.tools.set('pan', new PanTool(this));
 
-        this.tools.set('eyedropper', new EyeDropperTool(this, (x: number, y: number) => {
-            // Pick color logic
-            if (!this.mediaElement) return;
+        // 4. Initialize Tools (Plugin Driven)
+        this.plugins.register(CoreToolsPlugin);
 
-            // Ensure media is ready
-            let width = 0;
-            let height = 0;
-
-            if (this.mediaElement instanceof HTMLVideoElement) {
-                width = this.mediaElement.videoWidth;
-                height = this.mediaElement.videoHeight;
-            } else if (this.mediaElement instanceof HTMLImageElement) {
-                width = this.mediaElement.naturalWidth;
-                height = this.mediaElement.naturalHeight;
-            } else if (this.mediaElement instanceof HTMLCanvasElement) {
-                width = this.mediaElement.width;
-                height = this.mediaElement.height;
-            }
-
-            if (!width || !height) return;
-
-            // Draw video/image frame to offscreen canvas
-            const offscreen = document.createElement('canvas');
-            offscreen.width = width;
-            offscreen.height = height;
-            const ctx = offscreen.getContext('2d');
-            if (ctx) {
-                // drawImage supports video, image, and canvas
-                ctx.drawImage(this.mediaElement, 0, 0);
-                const pxX = Math.floor(x * offscreen.width);
-                const pxY = Math.floor(y * offscreen.height);
-                const pixel = ctx.getImageData(pxX, pxY, 1, 1).data;
-                const hex = "#" + ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1);
-
-                this.store.setState({ activeColor: hex, activeTool: 'freehand' }); // Auto switch back to brush
-            }
-        }));
-
-        this.initInteraction();
+        this.initInputManager();
         this.initShortcuts();
         this.initResizeObserver();
         this.initSyncBinding();
@@ -221,303 +182,64 @@ export class WebMediaAnnotator {
         });
     }
 
-    private initInteraction() {
-        // Multi-touch State
-        const activePointers = new Map<number, PointerEvent>();
-        let initialPinchDist: number | null = null;
-        let initialScale = 1;
+    private initInputManager() {
+        this.inputManager = new InputManager({
+            canvas: this.canvasElement,
+            store: this.store,
+            callbacks: {
+                onInteractionStart: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.toolRegistry.get(toolName);
+                    if (tool) tool.onMouseDown(e.x, e.y, e.originalEvent);
+                },
+                onInteractionMove: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.toolRegistry.get(toolName);
+                    if (tool) tool.onMouseMove(e.x, e.y, e.originalEvent);
+                },
+                onInteractionEnd: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.toolRegistry.get(toolName);
+                    if (tool) tool.onMouseUp(e.x, e.y, e.originalEvent);
+                },
+                onPinchZoom: (scale: number) => {
+                    const vp = this.store.getState().viewport;
+                    this.store.setState({
+                        viewport: { ...vp, scale }
+                    });
+                },
+                onWheelZoom: (delta: number) => {
+                    const zoomSpeed = 0.001;
+                    const vp = this.store.getState().viewport;
+                    const newScale = Math.min(Math.max(0.1, vp.scale + (-delta * zoomSpeed * vp.scale)), 5);
+                    this.store.setState({
+                        viewport: { ...vp, scale: newScale }
+                    });
+                },
+                onMiddleMouseDown: (e: NormalizedPointerEvent) => {
+                    this.previousTool = this.store.getState().activeTool;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    this.store.setState({ activeTool: 'pan' as any });
+                    const panTool = this.toolRegistry.get('pan');
+                    if (panTool) panTool.onMouseDown(e.x, e.y, e.originalEvent);
+                },
+                onMiddleMouseUp: (e: NormalizedPointerEvent) => {
+                    const panTool = this.toolRegistry.get('pan');
+                    if (panTool) panTool.onMouseUp(e.x, e.y, e.originalEvent);
 
-        const getDist = (p1: PointerEvent, p2: PointerEvent) => {
-            return Math.sqrt(Math.pow(p1.clientX - p2.clientX, 2) + Math.pow(p1.clientY - p2.clientY, 2));
-        };
-
-        // Simple Interaction Dispatcher
-        const getXY = (e: MouseEvent | PointerEvent) => {
-            const rect = this.canvasElement.getBoundingClientRect();
-            // With CSS Transforms, getBoundingClientRect returns the VISUAL position/size.
-            return {
-                x: (e.clientX - rect.left) / rect.width,
-                y: (e.clientY - rect.top) / rect.height,
-                pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
-            };
-        };
-
-        this.canvasElement.addEventListener('pointerdown', (e) => {
-            activePointers.set(e.pointerId, e);
-            this.canvasElement.setPointerCapture(e.pointerId);
-
-            if (activePointers.size === 2) {
-                // Start Pinch
-                const points = Array.from(activePointers.values());
-                initialPinchDist = getDist(points[0], points[1]);
-                initialScale = this.store.getState().viewport.scale;
-                return;
-            }
-
-            // Middle Mouse (Button 1) -> Temporary Pan
-            if (e.button === 1) {
-                e.preventDefault();
-                this.previousTool = this.store.getState().activeTool;
-                this.store.setState({ activeTool: 'pan' });
-                const { x, y } = getXY(e);
-                const panTool = this.tools.get('pan');
-                if (panTool) panTool.onMouseDown(x, y, e);
-                return;
-            }
-
-            if (activePointers.size === 1) {
-                const { x, y, pressure } = getXY(e);
-                const toolName = this.store.getState().activeTool;
-                const tool = this.tools.get(toolName);
-                if (tool) tool.onMouseDown(x, y, e);
+                    if (this.previousTool) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        this.store.setState({ activeTool: this.previousTool as any });
+                        this.previousTool = null;
+                    }
+                }
             }
         });
-
-        window.addEventListener('pointermove', (e) => {
-            const rect = this.canvasElement.getBoundingClientRect();
-            // Update pointer record
-            if (activePointers.has(e.pointerId)) {
-                activePointers.set(e.pointerId, e);
-            }
-
-            // Pinch Zoom Logic
-            if (activePointers.size === 2 && initialPinchDist) {
-                const points = Array.from(activePointers.values());
-                const dist = getDist(points[0], points[1]);
-                const scaleFactor = dist / initialPinchDist;
-
-                // Update Scale (clamped)
-                const newScale = Math.min(Math.max(0.1, initialScale * scaleFactor), 5);
-
-                const vp = this.store.getState().viewport;
-                this.store.setState({
-                    viewport: { ...vp, scale: newScale }
-                });
-                return;
-            }
-
-            // Standard Move
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
-
-            const toolName = this.store.getState().activeTool;
-            const tool = this.tools.get(toolName);
-            if (tool) tool.onMouseMove(x, y, e);
-        });
-
-        window.addEventListener('pointerup', (e) => {
-            activePointers.delete(e.pointerId);
-            this.canvasElement.releasePointerCapture(e.pointerId);
-
-            if (activePointers.size < 2) {
-                initialPinchDist = null;
-            }
-
-            // Middle Mouse Up -> Revert Tool
-            if (e.button === 1 && this.previousTool) {
-                const panTool = this.tools.get('pan');
-                const rect = this.canvasElement.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
-                if (panTool) panTool.onMouseUp(x, y, e);
-
-                this.store.setState({ activeTool: this.previousTool as any });
-                this.previousTool = null;
-                return;
-            }
-
-            const rect = this.canvasElement.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
-            const toolName = this.store.getState().activeTool;
-            const tool = this.tools.get(toolName);
-            if (tool) tool.onMouseUp(x, y, e);
-        });
-
-        // Wheel Zoom
-        this.canvasElement.addEventListener('wheel', (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                const zoomSpeed = 0.001;
-                const vp = this.store.getState().viewport;
-                const newScale = Math.min(Math.max(0.1, vp.scale + (-e.deltaY * zoomSpeed * vp.scale)), 5); // Logarithmic-ish
-                this.store.setState({
-                    viewport: { ...vp, scale: newScale }
-                });
-            }
-        }, { passive: false });
     }
 
     private initShortcuts() {
-        window.addEventListener('keydown', (e) => {
-            // Ignore keystrokes if focused on an input
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-            // Undo/Redo
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z') {
-                    e.preventDefault();
-                    this.store.undo();
-                    return;
-                }
-                if (e.key === 'y') {
-                    e.preventDefault();
-                    this.store.redo();
-                    return;
-                }
-                if (e.key === 'c') {
-                    const state = this.store.getState();
-                    const selIds = state.selectedAnnotationIds;
-
-                    if (selIds.length > 0) {
-                        // 1. Copy selected
-                        const selectedAnns = state.annotations.filter(a => selIds.includes(a.id));
-                        if (selectedAnns.length > 0) {
-                            this.clipboard = JSON.parse(JSON.stringify(selectedAnns));
-                            console.log(`[Clipboard] Copied ${selectedAnns.length} selected annotations.`);
-                        }
-                    } else {
-                        // 2. Copy all anchored on this frame
-                        const frameAnns = state.annotations.filter(a => a.frame === state.currentFrame);
-                        if (frameAnns.length > 0) {
-                            this.clipboard = JSON.parse(JSON.stringify(frameAnns));
-                            console.log(`[Clipboard] Copied ${frameAnns.length} annotations from frame ${state.currentFrame}.`);
-                        }
-                    }
-                    return;
-                }
-                if (e.key === 'v') {
-                    if (this.clipboard && this.clipboard.length > 0) {
-                        const currentFrame = this.store.getState().currentFrame;
-                        const addedIds: string[] = [];
-
-                        this.clipboard.forEach(template => {
-                            const newAnn = JSON.parse(JSON.stringify(template));
-                            newAnn.id = crypto.randomUUID();
-                            newAnn.frame = currentFrame;
-
-                            // Apply offset if pasting on the SAME frame as original source
-                            if (template.frame === currentFrame) {
-                                if (newAnn.points) {
-                                    newAnn.points = newAnn.points.map((p: any) => ({
-                                        ...p,
-                                        x: p.x + 0.02,
-                                        y: p.y + 0.02
-                                    }));
-                                }
-                            }
-
-                            this.store.addAnnotation(newAnn);
-                            addedIds.push(newAnn.id);
-                        });
-
-                        // Select the newly added ones
-                        this.store.setState({ selectedAnnotationIds: addedIds });
-
-                        this.store.captureSnapshot();
-                        console.log(`[Clipboard] Pasted ${addedIds.length} annotations.`);
-                    }
-                    return;
-                }
-                // Navigation by Annotated Frames
-                if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    this.player.seekToPrevAnnotation();
-                    return;
-                }
-                if (e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    this.player.seekToNextAnnotation();
-                    return;
-                }
-            }
-
-            switch (e.key.toLowerCase()) {
-                // Toggles & Selection
-                case 'escape':
-                    this.store.setState({ selectedAnnotationIds: [], activeTool: 'select' });
-                    break;
-
-                case 'delete':
-                case 'backspace':
-                    const selIds = this.store.getState().selectedAnnotationIds;
-                    if (selIds.length > 0) {
-                        selIds.forEach(id => this.store.deleteAnnotation(id));
-                        this.store.setState({ selectedAnnotationIds: [] });
-                        this.store.captureSnapshot();
-                    }
-                    break;
-
-                // Playback
-                case ' ': // Spacebar
-                    e.preventDefault();
-                    if (this.store.getState().isPlaying) {
-                        this.player.pause();
-                    } else {
-                        this.player.play();
-                    }
-                    break;
-
-                // Navigation (Frame by Frame)
-                case 'arrowleft':
-                    e.preventDefault();
-                    this.player.seekToFrame(this.store.getState().currentFrame - 1);
-                    break;
-                case 'arrowright':
-                    e.preventDefault();
-                    this.player.seekToFrame(this.store.getState().currentFrame + 1);
-                    break;
-
-                // Tools
-                case 's': this.store.setState({ activeTool: 'select' }); break;
-                case 'p': this.store.setState({ activeTool: 'freehand', selectedAnnotationIds: [] }); break;
-                case 'a': this.store.setState({ activeTool: 'arrow', selectedAnnotationIds: [] }); break;
-                case 'c': this.store.setState({ activeTool: 'circle', selectedAnnotationIds: [] }); break;
-                case 'q': this.store.setState({ activeTool: 'square', selectedAnnotationIds: [] }); break;
-                case 't': this.store.setState({ activeTool: 'text', selectedAnnotationIds: [] }); break;
-                case 'e': this.store.setState({ activeTool: 'eraser', selectedAnnotationIds: [] }); break;
-
-                // Toggles
-                case 'g':
-                    const isCurrentlyEnabled = this.store.getState().isOnionSkinEnabled;
-
-                    if (!isCurrentlyEnabled) {
-                        // Turning ON: Enable ghosting, reset duration to 1
-                        this.store.setState({ isOnionSkinEnabled: true, holdDuration: 1 });
-                    } else {
-                        // Turning OFF
-                        this.store.setState({ isOnionSkinEnabled: false });
-                    }
-                    break;
-
-                case 'h':
-                    const currentDur = this.store.getState().holdDuration;
-                    if (currentDur > 1) {
-                        this.store.setState({ holdDuration: 1 });
-                    } else {
-                        // Default to 24 frames (Standard Hold), turn off ghosting
-                        this.store.setState({ holdDuration: 24, isOnionSkinEnabled: false });
-                    }
-                    break;
-
-                // View
-                case 'r':
-                    this.store.setState({ viewport: { x: 0, y: 0, scale: 1 } });
-                    break;
-
-                // Stroke Width
-                case '=': // + without shift
-                case '+':
-                    const newWidthInc = Math.min(20, this.store.getState().activeStrokeWidth + 1);
-                    this.store.setState({ activeStrokeWidth: newWidthInc });
-                    break;
-                case '-':
-                case '_':
-                    const newWidthDec = Math.max(1, this.store.getState().activeStrokeWidth - 1);
-                    this.store.setState({ activeStrokeWidth: newWidthDec });
-                    break;
-            }
-        });
+        // Shortcuts are now handled by the React layer (useHotkeys hook) or external consumers.
+        // This method is deprecated and empty to prevent double-binding.
     }
 
     private initSyncBinding() {
@@ -527,8 +249,10 @@ export class WebMediaAnnotator {
             if (ann.id.startsWith('temp_')) return; // Filter temp
 
             console.log(`[LinkSync DEBUG] Sending to Yjs: ${ann.id}, Dur: ${ann.duration}`);
-            // Add to Yjs Map
-            this.sync.annotationsMap.set(ann.id, ann);
+            // Strip fallbackPaths before sync (contains complex opentype.js objects that cause serialization issues)
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { fallbackPaths, ...syncableAnn } = ann;
+            this.sync.annotationsMap.set(ann.id, syncableAnn);
         });
 
         this.store.on('annotation:updated', (id, updates, fromRemote) => {
@@ -538,7 +262,10 @@ export class WebMediaAnnotator {
             // Update Yjs Map entry
             const existing = this.sync.annotationsMap.get(id);
             if (existing) {
-                this.sync.annotationsMap.set(id, { ...existing, ...updates });
+                // Strip fallbackPaths before sync
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { fallbackPaths, ...syncableUpdates } = updates;
+                this.sync.annotationsMap.set(id, { ...existing, ...syncableUpdates });
             }
         });
 
@@ -576,12 +303,12 @@ export class WebMediaAnnotator {
                 if (change.action === 'add') {
                     const ann = this.sync.annotationsMap.get(key);
                     if (ann && event.transaction.origin === this.sync) {
-                        this.store.addAnnotation(ann, true);
+                        this.store.addAnnotation(ann as Annotation, true);
                     }
                 } else if (change.action === 'update') {
                     const ann = this.sync.annotationsMap.get(key);
                     if (ann && event.transaction.origin === this.sync) {
-                        this.store.updateAnnotation(key, ann, true);
+                        this.store.updateAnnotation(key, ann as Annotation, true);
                     }
                 } else if (change.action === 'delete') {
                     if (event.transaction.origin === this.sync) {
@@ -598,7 +325,7 @@ export class WebMediaAnnotator {
 
                 // Onion Skin
                 if (event.keysChanged.has('onionSkin')) {
-                    const params = this.sync.sessionMap.get('onionSkin');
+                    const params = this.sync.sessionMap.get('onionSkin') as { enabled: boolean, prev: number, next: number };
                     if (params) {
                         this.store.setState({
                             isOnionSkinEnabled: params.enabled,
@@ -626,7 +353,8 @@ export class WebMediaAnnotator {
     }
 
     private initPlaybackSync() {
-        this.sync.on('playback:change', (msg: any) => {
+        this.sync.on('playback:change', (msg: Message) => {
+            if (msg.type !== 'playback') return; // Type guard check
             this.isRemotePlayback = true;
             if (msg.action === 'play') {
                 this.player.play();
@@ -706,7 +434,7 @@ export class WebMediaAnnotator {
         if (this.mediaElement instanceof HTMLVideoElement || this.mediaElement instanceof HTMLCanvasElement) {
             this.mediaElement.addEventListener('loadedmetadata', onMediaLoad);
             // Also check if already ready (for GifAdapter immediate load)
-            const playable = this.mediaElement as any;
+            const playable = this.mediaElement as unknown as { videoWidth: number, videoHeight: number };
             if (playable.videoWidth && playable.videoHeight) {
                 onMediaLoad();
             }
@@ -737,8 +465,8 @@ export class WebMediaAnnotator {
             mediaH = this.mediaElement.naturalHeight;
         } else if (this.mediaElement instanceof HTMLCanvasElement) {
             // Check for video-like props (GifAdapter) or fall back to canvas dims
-            mediaW = (this.mediaElement as any).videoWidth || this.mediaElement.width;
-            mediaH = (this.mediaElement as any).videoHeight || this.mediaElement.height;
+            mediaW = (this.mediaElement as unknown as { videoWidth: number }).videoWidth || this.mediaElement.width;
+            mediaH = (this.mediaElement as unknown as { videoHeight: number }).videoHeight || this.mediaElement.height;
         }
 
         if (!mediaW || !mediaH) return;
@@ -847,7 +575,6 @@ export class WebMediaAnnotator {
 
         if (element instanceof HTMLVideoElement) {
             element.controls = false;
-            // @ts-ignore
             element.disablePictureInPicture = true;
             element.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
             element.setAttribute('playsinline', 'true');
@@ -866,7 +593,12 @@ export class WebMediaAnnotator {
     }
 
     destroy() {
-        // Cleanup...
+        // Cleanup InputManager
+        if (this.inputManager) {
+            this.inputManager.destroy();
+            this.inputManager = null;
+        }
+        // Cleanup DOM
         if (this.mediaElement && this.mediaElement.parentNode) {
             this.mediaElement.parentNode.removeChild(this.mediaElement);
         }
@@ -881,4 +613,8 @@ export * from './Player';
 export * from './LinkSync';
 export * from './Renderer';
 export * from './PluginManager';
-export * from './MediaRegistry'; // Export Registry
+export * from './MediaRegistry';
+export * from './InputManager';
+export * from './plugins/examples/PolyLinePlugin';
+export * from './plugins/examples/PolyLineTool';
+export * from './tools/BaseTool';

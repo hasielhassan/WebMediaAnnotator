@@ -1,14 +1,20 @@
 import { EventEmitter } from 'eventemitter3';
 
+export interface Point {
+    x: number;
+    y: number;
+    p?: number;
+}
+
 export interface Annotation {
     id: string;
     frame: number; // Start frame
     duration?: number; // Duration in frames (default 1)
-    type: 'freehand' | 'arrow' | 'circle' | 'square' | 'text';
-    points?: { x: number; y: number; p?: number }[]; // For freehand/polygons
+    type: 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'polyline';
+    points?: Point[]; // For freehand/polygons
     text?: string;
     // Fallback vector paths for text (opentype.js JSON format or SVG path commands)
-    fallbackPaths?: any[];
+    fallbackPaths?: unknown[];
     style: {
         color: string;
         width: number;
@@ -22,6 +28,7 @@ export interface Annotation {
         scaleY: number;
         rotation: number;
     };
+    timestamp?: number;
 }
 
 export interface AppState {
@@ -38,7 +45,7 @@ export interface AppState {
     selectedAnnotationIds: string[];
 
     // Editor State
-    activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan';
+    activeTool: 'select' | 'freehand' | 'arrow' | 'circle' | 'square' | 'text' | 'eraser' | 'pan' | 'polyline' | string;
     activeColor: string;
     activeStrokeWidth: number;
     defaultDuration: number; // For new annotations (Property)
@@ -69,7 +76,7 @@ export const DEFAULT_STATE: AppState = {
     startFrame: 0,
     annotations: [],
     selectedAnnotationIds: [],
-    activeTool: 'select',
+    activeTool: 'freehand',
     activeColor: '#FF0000',
     activeStrokeWidth: 3,
     defaultDuration: 1, // Default property: 1 frame
@@ -159,13 +166,13 @@ export class Store extends EventEmitter {
      * This ensures that when we reconcile for undo/redo, remote changes are seen as
      * "already existing" in the past, so they aren't reverted.
      */
-    private injectRemoteAnnotationChange(id: string, data: any, action: 'add' | 'update' | 'delete') {
+    private injectRemoteAnnotationChange(id: string, data: Partial<Annotation> | null, action: 'add' | 'update' | 'delete') {
         const updateStack = (stack: AppState[]) => {
             stack.forEach(snap => {
                 if (action === 'add') {
                     // Avoid dups
                     if (!snap.annotations.some(a => a.id === id)) {
-                        snap.annotations.push({ ...data });
+                        snap.annotations.push(data as Annotation);
                     }
                 } else if (action === 'update') {
                     const idx = snap.annotations.findIndex(a => a.id === id);
@@ -245,8 +252,10 @@ export class Store extends EventEmitter {
             }
         });
 
-        // 2. Apply non-annotation state (viewport, tool etc) directly
-        const { annotations, ...rest } = targetState;
+        // 2. Apply non-annotation, non-viewport state (tool settings etc) directly
+        // Exclude: annotations (handled above), viewport (local UI state, not undoable)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { annotations: _unused, viewport: _viewportUnused, ...rest } = targetState;
         this.setState(rest);
     }
 

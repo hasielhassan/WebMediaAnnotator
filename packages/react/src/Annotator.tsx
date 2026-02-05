@@ -1,9 +1,16 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
-import { WebMediaAnnotator, AppState, MediaRegistry } from '@web-media-annotator/core';
-import { Toolbar, Popover, ExportProgress } from '@web-media-annotator/ui';
-import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
-import { Player } from '@web-media-annotator/core';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { WebMediaAnnotator, MediaRegistry } from '@web-media-annotator/core';
+
+import { Popover, ExportProgress } from '@web-media-annotator/ui';
+import { Undo2, Redo2, Download, Trash2, Eraser, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { SyncPanel } from './SyncPanel';
+import { AnnotatorToolbar } from './components/AnnotatorToolbar';
+import { AnnotatorControls } from './components/AnnotatorControls';
+import { AnnotatorCanvas } from './components/AnnotatorCanvas';
+import { useMediaQuery } from './hooks/useMediaQuery';
+import { useHotkeys } from './hooks/useHotkeys';
+import { useMediaIO } from './hooks/useMediaIO';
+import { useAnnotator } from './hooks/useAnnotator';
 
 export interface AnnotatorProps {
     src: string;
@@ -13,6 +20,7 @@ export interface AnnotatorProps {
     height?: string | number;
     className?: string;
     preload?: 'auto' | 'metadata' | 'force-download';
+    onReady?: (instance: WebMediaAnnotator) => void;
 }
 
 export interface AnnotatorRef {
@@ -20,162 +28,65 @@ export interface AnnotatorRef {
 }
 
 export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
-    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload
+    src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload, onReady
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const annotatorRef = useRef<WebMediaAnnotator | null>(null);
-    const [state, setState] = useState<AppState | null>(null);
-    const [useTimecode, setUseTimecode] = useState(false);
-    const [exportProgress, setExportProgress] = useState<{ current: number, total: number } | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [loadingProgress, setLoadingProgress] = useState<number | null>(null); // 0-1
+
+    // Core Annotator Lifecycle Hook
+    const { instance, state } = useAnnotator({
+        containerRef,
+        src,
+        fps,
+        startFrame,
+        preload
+    });
+
+    // Notify parent when ready
+    useEffect(() => {
+        if (instance && onReady) {
+            onReady(instance);
+        }
+    }, [instance, onReady]);
+
+    // Derived States for UI
+    // Remove max-height check so high-res landscape phones (Pixel 7, iPhone Max) use Desktop layout (saving vertical space)
+    const isMobile = useMediaQuery('(max-width: 768px)');
+    const isTouch = useMediaQuery('(pointer: coarse)');
+
+    // IO Hook
+    const {
+        exportProgress,
+        isLoading,
+        loadingProgress,
+        handleExport,
+        handleBulkExport,
+        handleSave,
+        handleLoad
+    } = useMediaIO(instance, state);
 
     useImperativeHandle(ref, () => ({
-        getInstance: () => annotatorRef.current
+        getInstance: () => instance
     }));
 
-    useEffect(() => {
-        if (!containerRef.current) return;
-
-        const annotator = new WebMediaAnnotator(containerRef.current, {
-            videoSrc: src,
-            fps,
-            startFrame,
-            preload
-        });
-        annotatorRef.current = annotator;
-
-        setState(annotator.store.getState());
-        const onStateChange = (newState: AppState) => {
-            setState({ ...newState });
-        };
-        annotator.store.on('state:changed', onStateChange);
-
-        return () => {
-            annotator.store.off('state:changed', onStateChange);
-            annotator.destroy();
-            annotatorRef.current = null;
-        };
-    }, [src, fps, startFrame]);
+    // Enable hotkeys: Disable if touch/mobile to prevent virtual keyboard interference? 
+    // Actually user said remove Info button. Hotkeys might still be useful if they use a bluetooth keyboard on iPad.
+    // So keep hotkeys enabled, just hide the visual Info helper.
+    useHotkeys(instance, true);
 
     // Handlers
-    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as any, selectedAnnotationIds: [] });
-    const handleColorChange = (color: string) => annotatorRef.current?.store.setState({ activeColor: color });
-    const handleWidthChange = (width: number) => annotatorRef.current?.store.setState({ activeStrokeWidth: width });
-
-    const handlePlayPause = () => state?.isPlaying ? annotatorRef.current?.player.pause() : annotatorRef.current?.player.play();
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => annotatorRef.current?.player.seekToFrame(parseInt(e.target.value));
-
-    const handleUndo = () => annotatorRef.current?.store.undo();
-    const handleRedo = () => annotatorRef.current?.store.redo();
-
-    const handleExport = async (composite: boolean) => {
-        if (!annotatorRef.current) return;
-        const dataUrl = await annotatorRef.current.renderer.captureFrame({ composite, mediaElement: annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement });
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `frame_${state?.currentFrame}_${composite ? 'comp' : 'anno'}.png`;
-        a.click();
-    };
-
-    const handleBulkExport = async (composite: boolean) => {
-        if (!annotatorRef.current) return;
-        try {
-            const blob = await annotatorRef.current.exportAnnotatedFrames(composite, (current, total) => {
-                setExportProgress({ current, total });
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `annotations_export_${composite ? 'burned' : 'clean'}.zip`;
-            a.click();
-            URL.revokeObjectURL(url);
-        } catch (err: any) {
-            console.error("Export failed", err);
-            alert("Export failed: " + err.message);
-        } finally {
-            setExportProgress(null);
-        }
-    };
-
-    const handleSave = () => {
-        if (!annotatorRef.current) return;
-        const json = JSON.stringify(annotatorRef.current.store.getState().annotations, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'annotations.json';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const handleLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!annotatorRef.current || !e.target.files || !e.target.files[0]) return;
-        const file = e.target.files[0];
-
-        setIsLoading(true);
-
-        // Check extension
-        if (file.name.toLowerCase().endsWith('.json')) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                try {
-                    const annotations = JSON.parse(ev.target?.result as string);
-                    if (Array.isArray(annotations)) {
-                        annotatorRef.current?.store.setState({ annotations });
-                        annotatorRef.current?.store.captureSnapshot();
-                    }
-                } catch (err) {
-                    console.error("Invalid JSON", err);
-                    alert("Failed to load JSON");
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            reader.readAsText(file);
-        } else {
-            // Assume Media
-            try {
-                setLoadingProgress(0);
-                await annotatorRef.current.loadMedia(file, (p) => {
-                    setLoadingProgress(p);
-                });
-                // Reset annotations on new media load? Maybe optional.
-                // For now, let's keep them (overlay use case) or clear them?
-                // Usually new media = new context.
-                if (confirm("Clear existing annotations for new media?")) {
-                    annotatorRef.current.store.setState({ annotations: [] });
-                }
-            } catch (err: any) {
-                console.error("Failed to load media", err);
-                alert("Failed to load media: " + err.message);
-            } finally {
-                setIsLoading(false);
-                setLoadingProgress(null);
-            }
-        }
-    };
-
-    // Calculate markers
-    const markers = React.useMemo(() => {
-        if (!state || !state.annotations) return [];
-        const frames = new Set(state.annotations.map(a => a.frame));
-        return Array.from(frames).sort((a, b) => a - b);
-    }, [state?.annotations]);
-
-    const totalFrames = state && state.duration ? Math.floor(state.duration * state.fps) : 100;
+    const handleUndo = () => instance?.store.undo();
+    const handleRedo = () => instance?.store.redo();
 
     // Fix aspect ratio on load
     const handleMediaLoad = () => {
-        if (!annotatorRef.current) return;
-        // Use exposed getter which casts, OR use internal mediaElement if we exposed it. 
+        if (!instance) return;
+        // Use exposed getter which casts, OR use internal mediaElement if we exposed it.
         // The getter videoElement returns HTMLVideoElement, but at runtime it might be IG.
         // Let's rely on renderer resize or custom logic.
         // Actually, WebMediaAnnotator handles fitCanvasToVideo internaly on 'loadedmetadata'.
         // We just need to update Container Aspect Ratio.
 
-        const media = annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement;
+        const media = instance['mediaElement'] as HTMLVideoElement | HTMLImageElement;
         if (media && containerRef.current) {
             let w, h;
             if (media instanceof HTMLVideoElement) {
@@ -189,42 +100,42 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
             if (w && h) {
                 const ratio = w / h;
                 containerRef.current.style.aspectRatio = `${ratio}`;
-                annotatorRef.current.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+                instance.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
             }
         }
     };
 
-    // --- Zoom Logic ---
-    const handleWheel = (e: React.WheelEvent) => {
-        if (!state) return;
+    // --- Zoom Logic --- // Moved to AnnotatorCanvas
+    // const handleWheel = (e: React.WheelEvent) => {
+    //     if (!state) return;
 
-        const scaleFactor = 1.1;
-        const direction = e.deltaY > 0 ? -1 : 1;
-        let newScale = state.viewport.scale * (direction > 0 ? scaleFactor : 1 / scaleFactor);
-        newScale = Math.max(0.1, Math.min(newScale, 10)); // Clamp
+    //     const scaleFactor = 1.1;
+    //     const direction = e.deltaY > 0 ? -1 : 1;
+    //     let newScale = state.viewport.scale * (direction > 0 ? scaleFactor : 1 / scaleFactor);
+    //     newScale = Math.max(0.1, Math.min(newScale, 10)); // Clamp
 
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+    //     const rect = containerRef.current?.getBoundingClientRect();
+    //     if (!rect) return;
+    //     const mouseX = e.clientX - rect.left;
+    //     const mouseY = e.clientY - rect.top;
 
-        // Zoom towards mouse pointer
-        const newX = mouseX - (mouseX - state.viewport.x) / state.viewport.scale * newScale;
-        const newY = mouseY - (mouseY - state.viewport.y) / state.viewport.scale * newScale;
+    //     // Zoom towards mouse pointer
+    //     const newX = mouseX - (mouseX - state.viewport.x) / state.viewport.scale * newScale;
+    //     const newY = mouseY - (mouseY - state.viewport.y) / state.viewport.scale * newScale;
 
-        annotatorRef.current?.store.setState({
-            viewport: { x: newX, y: newY, scale: newScale }
-        });
-    };
+    //     instance?.store.setState({
+    //         viewport: { x: newX, y: newY, scale: newScale }
+    //     });
+    // };
     useEffect(() => {
-        if (annotatorRef.current) {
+        if (instance) {
             // We can't easily add listener to 'videoElement' if it changes via loadMedia.
-            // Better to rely on store state or internal events. 
+            // Better to rely on store state or internal events.
             // The WebMediaAnnotator internal resize observer handles the Canvas/Renderer sync.
             // We just need to sync Container aspect ratio.
             // Let's poll or hook into 'loadedmetadata' on init.
 
-            const media = annotatorRef.current['mediaElement'] as Element;
+            const media = instance['mediaElement'] as Element;
             if (media) {
                 const handler = () => handleMediaLoad();
                 // Video uses loadedmetadata, Image uses load
@@ -236,114 +147,85 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                 };
             }
         }
-    }, [annotatorRef.current, state?.mediaType]); // Re-run if media type changes (implies new element)
+    }, [instance, state?.mediaType]); // Re-run if media type changes (implies new element)
 
     return (
-        <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height }}>
+        <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height, overflow: 'hidden' }}>
+            <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             {/* Top Toolbar Area */}
-            <div className="flex flex-row items-center bg-gray-900 border-b border-gray-800">
-                <div className="pl-2">
-                    <Popover
-                        side="bottom"
-                        align="start"
-                        trigger={
-                            <button title="Shortcuts Info" className="p-2 text-gray-400 hover:text-blue-400 transition-colors">
-                                <Info size={20} />
-                            </button>
-                        }
-                        content={
-                            <div className="w-64 p-2 text-xs">
-                                <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
-                                <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
-                                    <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
-                                    <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
-                                    <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
-                                    <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
-                                    <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
-                                    <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
-                                    <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
+            <div className={`flex flex-row flex-wrap items-center bg-gray-900 border-b border-gray-800 shrink-0 gap-x-2 gap-y-2 px-2 py-2 min-h-[56px] h-auto justify-start`}>
 
-                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
-                                    <span>Select</span> <span className="font-mono text-gray-500">S</span>
-                                    <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
-                                    <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
-                                    <span>Circle</span> <span className="font-mono text-gray-500">C</span>
-                                    <span>Square</span> <span className="font-mono text-gray-500">Q</span>
-                                    <span>Text</span> <span className="font-mono text-gray-500">T</span>
-                                    <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
-                                    <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
-                                    <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
-
-                                    <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
-                                    <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
-                                    <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
-                                    <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
-                                    <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
-                                </div>
-                            </div>
-                        }
-                    />
-                </div>
-                <Toolbar
+                <AnnotatorToolbar
+                    annotator={instance}
+                    state={state}
+                    className="border-0 bg-transparent flex-1 justify-center min-w-0"
                     orientation="horizontal"
-                    className="border-0 bg-transparent flex-1"
-                    activeTool={state?.activeTool || 'select'}
-                    onToolSelect={handleToolSelect}
-                    activeColor={state?.activeColor}
-                    onColorChange={handleColorChange}
-                    activeStrokeWidth={state?.activeStrokeWidth}
-                    onStrokeWidthChange={handleWidthChange}
+                    isMobile={isMobile}
+                    prefix={
+                        !isMobile && !isTouch ? (
+                            <Popover
+                                side="bottom"
+                                align="start"
+                                trigger={
+                                    <button title="Shortcuts Info" className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors">
+                                        <Info size={24} />
+                                    </button>
+                                }
+                                content={
+                                    <div className="w-64 p-2 text-xs">
+                                        <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
+                                        <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
+                                            <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
+                                            <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
+                                            <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
+                                            <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
+                                            <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
+                                            <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
+                                            <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
 
-                    defaultDuration={state?.defaultDuration || 1}
-                    onDefaultDurationChange={(d) => annotatorRef.current?.store.setState({ defaultDuration: d })}
+                                            <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
+                                            {instance?.toolRegistry.getAllDefinitions().map(def => (
+                                                <React.Fragment key={def.name}>
+                                                    <span>{def.metadata.label}</span>
+                                                    <span className="font-mono text-gray-500">{def.metadata.shortcut || '-'}</span>
+                                                </React.Fragment>
+                                            ))}
 
-                    holdDuration={state?.holdDuration || 1}
-                    onHoldDurationChange={(d: number) => {
-                        // If setting hold > 1, turn off onion skin
-                        if (d > 1) {
-                            annotatorRef.current?.store.setState({ holdDuration: d, isOnionSkinEnabled: false });
-                        } else {
-                            annotatorRef.current?.store.setState({ holdDuration: d });
-                        }
-                    }}
+                                            {/* System Toggles */}
+                                            <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
+                                            <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
 
-                    isOnionSkinEnabled={state?.isOnionSkinEnabled}
-                    onToggleOnionSkin={() => {
-                        const nextState = !state?.isOnionSkinEnabled;
-                        // If turning on onion skin, reset hold to 1
-                        if (nextState) {
-                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: true, holdDuration: 1 });
-                        } else {
-                            annotatorRef.current?.store.setState({ isOnionSkinEnabled: false });
-                        }
-                    }}
-                    onionSkinPrevFrames={state?.onionSkinPrevFrames}
-                    onionSkinNextFrames={state?.onionSkinNextFrames}
-                    onOnionSkinSettingsChange={(prev: number, next: number) => annotatorRef.current?.store.setState({ onionSkinPrevFrames: prev, onionSkinNextFrames: next })}
-                    isImageMode={(state?.mediaType as string) === 'image'}
-                />
+                                            <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
+                                            <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
+                                            <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
+                                            <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
+                                            <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
+                                        </div>
+                                    </div>
+                                }
+                            />
+                        ) : undefined
+                    }
+                >
 
-                <div className="flex gap-2 px-2 items-center border-l border-gray-800 h-10">
-                    <button title="Undo" onClick={handleUndo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Undo2 size={16} /></button>
-                    <button title="Redo" onClick={handleRedo} className="p-2 bg-gray-800 rounded hover:bg-gray-700"><Redo2 size={16} /></button>
-                </div>
+                    {/* Injected System Tools */}
+                    <button title="Undo" onClick={handleUndo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Undo2 size={24} /></button>
+                    <button title="Redo" onClick={handleRedo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Redo2 size={24} /></button>
 
-                <div className="flex px-2 items-center border-l border-gray-800 h-10">
-                    <SyncPanel annotator={annotatorRef.current} />
-                </div>
+                    <div className="flex items-center">
+                        <SyncPanel annotator={instance} />
+                    </div>
 
-                {/* Export / Import Menu */}
-                <div className="flex px-2 items-center border-l border-gray-800 h-10 mr-2">
                     <Popover
                         side="bottom"
                         align="end"
                         trigger={
                             <button
                                 title="Import / Export"
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs font-medium transition-colors"
+                                className="h-11 px-3 flex items-center gap-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
                             >
-                                <Download size={14} />
-                                <span>Export</span>
+                                <Download size={18} />
+                                <span className="hidden sm:inline">Export</span>
                             </button>
                         }
                         content={
@@ -406,195 +288,44 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                             </div>
                         }
                     />
-                </div>
 
-                <div className="flex gap-2 items-center">
                     <button
                         title="Clear Current Frame"
                         onClick={() => {
-                            // Find annotations on current frame and delete them
-                            // Ideally Store needs a method, but for now filtering:
                             const current = state?.currentFrame || 0;
                             const keep = state?.annotations.filter(a => a.frame !== current) || [];
-                            annotatorRef.current?.store.setState({ annotations: keep });
+                            instance?.store.setState({ annotations: keep });
                         }}
-                        className="p-2 rounded hover:bg-red-900/30 text-red-300 transition-colors"
+                        className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/30 text-red-300 transition-colors"
                     >
-                        <Eraser size={20} />
+                        <Eraser size={24} />
                     </button>
 
                     <button
                         title="Clear All Annotations"
                         onClick={() => {
                             if (confirm('Clear all annotations?')) {
-                                annotatorRef.current?.store.setState({ annotations: [] });
+                                instance?.store.setState({ annotations: [] });
                             }
                         }}
-                        className="p-2 rounded hover:bg-red-900/50 text-red-500 transition-colors"
+                        className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/50 text-red-500 transition-colors"
                     >
-                        <Trash2 size={20} />
+                        <Trash2 size={24} />
                     </button>
-                </div>
+                </AnnotatorToolbar>
             </div>
 
-            <div className="flex-1 flex flex-row overflow-hidden">
-                <div className="flex-1 relative bg-gray-950 overflow-hidden flex items-center justify-center">
-                    <div
-                        ref={containerRef}
-                        className="relative w-full h-full max-h-full"
-                        style={{ aspectRatio: '16/9' }}
-                        onWheel={handleWheel}
-                    />
-                </div>
-            </div>
+            <AnnotatorCanvas
+                ref={containerRef}
+                annotator={instance}
+                state={state}
+            />
 
-            {/* Timeline / Controls - Hide completely for Image Mode */}
-            {(state?.mediaType as string) !== 'image' && (
-                <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-4 pb-safe">
-                    <div className="flex items-center gap-1">
-                        <button title="Prev Annotation" onClick={() => annotatorRef.current?.player.seekToPrevAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipBack size={16} /></button>
-                        <button title="Prev Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) - 1)} className="p-1 hover:text-white text-gray-400"><ChevronLeft size={16} /></button>
-
-                        {/* Play/Pause - Clean Style - HIDE FOR IMAGE */}
-                        {state?.mediaType === 'video' && (
-                            <button
-                                onClick={handlePlayPause}
-                                className="w-8 h-8 flex items-center justify-center text-white hover:text-blue-400 mx-2 transition-colors"
-                            >
-                                {state?.isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                            </button>
-                        )}
-
-                        <button title="Next Frame" onClick={() => annotatorRef.current?.player.seekToFrame((state?.currentFrame || 0) + 1)} className="p-1 hover:text-white text-gray-400"><ChevronRight size={16} /></button>
-                        <button title="Next Annotation" onClick={() => annotatorRef.current?.player.seekToNextAnnotation()} className="p-1 hover:text-white text-gray-400"><SkipForward size={16} /></button>
-
-                        {/* Loop Toggle */}
-                        <button
-                            title="Toggle Loop"
-                            onClick={(e) => {
-                                const v = annotatorRef.current?.['videoElement'];
-                                if (v) {
-                                    v.loop = !v.loop;
-                                    (e.currentTarget).classList.toggle('text-blue-500');
-                                    (e.currentTarget).classList.toggle('text-gray-400');
-                                }
-                            }}
-                            className="p-1 ml-2 text-gray-400 hover:text-white"
-                        >
-                            <Repeat size={16} />
-                        </button>
-
-
-                    </div>
-
-                    <div className="flex-1 flex flex-col justify-center">
-                        {/* Timeline Slider with Markers - HIDDEN FOR IMAGES */}
-                        {state?.mediaType === 'video' && (
-                            <div className="relative w-full h-8 flex items-center group">
-                                {/* Markers layer - Rendered first (behind scrubber) but outside overflow-hidden track */}
-                                <div className="absolute inset-0 pointer-events-none">
-                                    {markers.map(frame => (
-                                        <div
-                                            key={frame}
-                                            className="absolute top-0 h-full flex flex-col items-center justify-center -translate-x-1/2 z-0 opacity-80"
-                                            style={{ left: `${(frame / totalFrames) * 100}%` }}
-                                        >
-                                            {/* Triangle Handle */}
-                                            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-yellow-400 mb-0.5" />
-                                            {/* Line */}
-                                            <div className="w-0.5 h-full bg-yellow-400/50" />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Track Background */}
-                                <div className="absolute inset-x-0 h-1 bg-gray-700 rounded-lg overflow-hidden pointer-events-none top-1/2 -translate-y-1/2">
-                                    {/* Buffered Ranges */}
-                                    {state?.buffered?.map((range, i) => (
-                                        <div
-                                            key={i}
-                                            className="absolute top-0 bottom-0 bg-gray-500/50"
-                                            style={{
-                                                left: `${(range.start / (state.duration || 1)) * 100}%`,
-                                                width: `${((range.end - range.start) / (state.duration || 1)) * 100}%`
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max={totalFrames}
-                                    value={state?.currentFrame || 0}
-                                    onChange={handleSeek}
-                                    className="w-full h-full opacity-0 cursor-pointer absolute z-20"
-                                />
-
-                                {/* Custom Scrubber Visual */}
-                                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full shadow pointer-events-none z-10 border-2 border-white box-content" style={{ left: `calc(${(state?.currentFrame || 0) / totalFrames * 100}% - 10px)` }} />
-                            </div>
-                        )}
-                        {/* Image Mode Indicator */}
-                        {(state?.mediaType as string) === 'image' && (
-                            <div className="text-gray-500 text-xs text-center">
-                                Single Frame Image Mode
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right Side Controls: Volume & Timecode */}
-                    <div className="flex items-center gap-2 border-l border-gray-800 pl-4 h-8 ml-2">
-                        {/* Volume */}
-                        <div className="relative group flex items-center justify-center h-full w-8">
-                            <button
-                                className="text-gray-400 hover:text-white"
-                                onClick={() => {
-                                    if (annotatorRef.current) {
-                                        const v = annotatorRef.current['videoElement'];
-                                        v.muted = !v.muted;
-                                        annotatorRef.current.store.setState({ volume: v.muted ? 0 : 1 });
-                                    }
-                                }}
-                            >
-                                {state?.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                            </button>
-
-                            {/* Vertical Slider Popup */}
-                            <div className="hidden group-hover:flex absolute bottom-6 mb-1 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 p-2 rounded shadow-2xl flex-col items-center h-32 w-8 z-50">
-                                <input
-                                    type="range"
-                                    min="0" max="1" step="0.1"
-                                    defaultValue={state?.volume}
-                                    onChange={(e) => {
-                                        if (annotatorRef.current) {
-                                            const val = parseFloat(e.target.value);
-                                            annotatorRef.current['videoElement'].volume = val;
-                                            annotatorRef.current['videoElement'].muted = false;
-                                            annotatorRef.current.store.setState({ volume: val });
-                                        }
-                                    }}
-                                    className="h-full w-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                    style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-                                />
-                            </div>
-                            {/* Invisible bridge for hover */}
-                            <div className="hidden group-hover:block absolute bottom-full w-20 h-6 bg-transparent left-1/2 -translate-x-1/2" />
-                        </div>
-
-                        {/* Timecode Display */}
-                        <button
-                            onClick={() => setUseTimecode(!useTimecode)}
-                            className="font-mono text-xs w-28 text-right hover:text-blue-400 transition-colors"
-                        >
-                            {useTimecode
-                                ? Player.frameToTimecode(state?.currentFrame || 0, state?.fps || 24)
-                                : `${state?.currentFrame} / ${totalFrames}`
-                            }
-                        </button>
-                    </div>
-                </div>
-            )}
+            <AnnotatorControls
+                annotator={instance}
+                state={state}
+                isMobile={isMobile}
+            />
 
             {/* Export Progress Overlay */}
             {exportProgress && (

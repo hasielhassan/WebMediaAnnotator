@@ -13,7 +13,7 @@ export class ShapeTool extends BaseTool {
         this.type = type;
     }
 
-    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseDown(x: number, y: number, _e: MouseEvent | PointerEvent) {
         this.isDrawing = true;
         this.startPoint = { x, y };
 
@@ -31,7 +31,7 @@ export class ShapeTool extends BaseTool {
         this.store.addAnnotation(tempAnnotation);
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseMove(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDrawing || !this.startPoint) return;
 
         // Update temp annotation end point
@@ -40,7 +40,7 @@ export class ShapeTool extends BaseTool {
         });
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseUp(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDrawing || !this.startPoint) return;
         this.isDrawing = false;
 

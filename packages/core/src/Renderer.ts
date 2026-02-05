@@ -1,4 +1,5 @@
-import { Store, Annotation } from './Store';
+import { Store } from './Store';
+import type { Annotation } from './Store';
 
 export class Renderer {
     public canvas: HTMLCanvasElement;
@@ -151,8 +152,8 @@ export class Renderer {
                 height = media.naturalHeight;
             } else if (media instanceof HTMLCanvasElement) {
                 // If it's a GifAdapter canvas, it might have videoWidth
-                width = (media as any).videoWidth || media.width;
-                height = (media as any).videoHeight || media.height;
+                width = (media as unknown as { videoWidth: number }).videoWidth || media.width;
+                height = (media as unknown as { videoHeight: number }).videoHeight || media.height;
             }
         }
 
@@ -196,11 +197,26 @@ export class Renderer {
         ctx.save();
         if (options.globalAlpha) ctx.globalAlpha = options.globalAlpha;
 
+        // Aspect Ratio Compensation (Global)
+        // Ensure visual uniformity even if canvas display is stretched (e.g. non-square pixels)
+        const rect = this.canvas.getBoundingClientRect();
+        const visW = rect.width || this.canvas.width;
+        const visH = rect.height || this.canvas.height;
+
+        const scaleX = visW / width;
+        const scaleY = visH / height;
+        // stretch > 1 means display is wide. We squeeze X in buffer so it stretches to normal.
+        const stretch = scaleX / scaleY;
+
+        // Apply Global Compensation
+        ctx.scale(1 / stretch, 1);
+
+        // Effective width we need to draw to fill the buffer, given the scale down
+        const effWidth = width * stretch;
+
         annotations.forEach(annotation => {
             ctx.strokeStyle = options.colorOverride || annotation.style.color;
             // Adaptive line width: Scale if output is much larger than standard
-            // Standardizing roughly to 1080p reference? 
-            // Or just trust annotation.style.width is relative? No it's pixels.
             const scaleFactor = width / this.canvas.width;
             ctx.lineWidth = Math.max(1, annotation.style.width * scaleFactor);
 
@@ -224,22 +240,14 @@ export class Renderer {
                         const p2 = points[i];
                         const radius2 = (annotation.style.width / 2) * scaleFactor * (p2.p !== undefined ? p2.p * 2 : 1);
 
-                        const cx = (p1.x + p2.x) / 2 * width;
-                        const cy = (p1.y + p2.y) / 2 * height;
-
-                        // We use the average pressure for the segment or interpolation?
-                        // Simple approach: each segment has its own width. 
-                        // Better: trapezoids or many small lines.
-                        // Standard canvas approach for variable width lines is complex.
-                        // "Poor man's" variable width: draw lots of circles or short thick lines.
-
                         // Let's try drawing a line segment with the average width
                         ctx.beginPath();
                         ctx.lineWidth = (radius1 + radius2); // diameter approx
                         ctx.lineCap = 'round';
                         ctx.lineJoin = 'round';
-                        ctx.moveTo(p1.x * width, p1.y * height);
-                        ctx.lineTo(p2.x * width, p2.y * height);
+                        // Counter-act global scale using effWidth
+                        ctx.moveTo(p1.x * effWidth, p1.y * height);
+                        ctx.lineTo(p2.x * effWidth, p2.y * height);
                         ctx.stroke();
 
                         // Advance
@@ -247,62 +255,78 @@ export class Renderer {
                         radius1 = radius2;
                     }
                 }
+            } else if (annotation.type === 'polyline' && annotation.points) {
+                if (annotation.points.length > 0) {
+                    const points = annotation.points;
+                    ctx.beginPath();
+                    // Draw connected lines
+                    ctx.moveTo(points[0].x * effWidth, points[0].y * height);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x * effWidth, points[i].y * height);
+                    }
+                    // Visual feedback for "open" polygon/polyline
+                    ctx.stroke();
+
+                    // Draw points if selected? No, keeping it clean.
+                }
             } else if (annotation.type === 'square' && annotation.points && annotation.points.length >= 2) {
                 const p1 = annotation.points[0];
                 const p2 = annotation.points[1];
-                const x = Math.min(p1.x, p2.x) * width;
+                const x = Math.min(p1.x, p2.x) * effWidth;
                 const y = Math.min(p1.y, p2.y) * height;
-                const w = Math.abs(p2.x - p1.x) * width;
+                const w = Math.abs(p2.x - p1.x) * effWidth;
                 const h = Math.abs(p2.y - p1.y) * height;
                 ctx.strokeRect(x, y, w, h);
             } else if (annotation.type === 'circle' && annotation.points && annotation.points.length >= 2) {
                 const p1 = annotation.points[0];
                 const p2 = annotation.points[1];
-                const x = Math.min(p1.x, p2.x) * width;
+                const x = Math.min(p1.x, p2.x) * effWidth;
                 const y = Math.min(p1.y, p2.y) * height;
-                const w = Math.abs(p2.x - p1.x) * width;
+                const w = Math.abs(p2.x - p1.x) * effWidth;
                 const h = Math.abs(p2.y - p1.y) * height;
                 ctx.beginPath();
                 ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, 2 * Math.PI);
+                ctx.stroke();
             } else if (annotation.type === 'arrow' && annotation.points && annotation.points.length >= 2) {
-                const x1 = annotation.points[0].x * width;
+                const x1 = annotation.points[0].x * effWidth;
                 const y1 = annotation.points[0].y * height;
-                const x2 = annotation.points[1].x * width;
+                const x2 = annotation.points[1].x * effWidth;
                 const y2 = annotation.points[1].y * height;
+                ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
                 // Head
-                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const angle = Math.atan2(y2 - y1, (x2 - x1) / stretch); // Correct angle for visual stretch
                 const headLen = 15 * scaleFactor;
                 ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
                 ctx.moveTo(x2, y2);
                 ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+                ctx.stroke();
             } else if (annotation.type === 'text' && annotation.points && annotation.text) {
-                const fontSize = (annotation.style.fontSize || 24) * scaleFactor;
+                // Font size relative to buffer height (normalized)
+                const fontSize = (annotation.style.fontSize || 0.05) * height;
                 ctx.font = `${fontSize}px Arial`;
                 ctx.fillStyle = ctx.strokeStyle;
-                ctx.textBaseline = 'top'; // Match HTML Input alignment
+                ctx.textBaseline = 'top';
 
-                // Text Wrapping
+                // Standard Text Drawing (Global Transform handles aspect ratio)
                 if (annotation.points.length >= 2) {
                     const p1 = annotation.points[0];
                     const p2 = annotation.points[1];
-                    const x = Math.min(p1.x, p2.x) * width;
+                    // Use effWidth for counter-scaling
+                    const x = Math.min(p1.x, p2.x) * effWidth;
                     const y = Math.min(p1.y, p2.y) * height;
-                    const w = Math.abs(p2.x - p1.x) * width;
-                    const h = Math.abs(p2.y - p1.y) * height; // Not strictly used for cut-off yet, but good to have
+                    const w = Math.abs(p2.x - p1.x) * effWidth;
 
                     const words = annotation.text.split(' ');
                     let line = '';
-                    let yCursor = y; // Start at top because textBaseline is 'top'
-
+                    let yCursor = y;
                     const lineHeight = fontSize * 1.2;
 
                     for (let n = 0; n < words.length; n++) {
                         const testLine = line + words[n] + ' ';
                         const metrics = ctx.measureText(testLine);
-                        const testWidth = metrics.width;
-                        if (testWidth > w && n > 0) {
+                        if (metrics.width > w && n > 0) {
                             ctx.fillText(line, x, yCursor);
                             line = words[n] + ' ';
                             yCursor += lineHeight;
@@ -312,12 +336,11 @@ export class Renderer {
                     }
                     ctx.fillText(line, x, yCursor);
                 } else {
-                    // Fallback Single Point
-                    ctx.fillText(annotation.text, annotation.points[0].x * width, annotation.points[0].y * height);
+                    ctx.fillText(annotation.text, annotation.points[0].x * effWidth, annotation.points[0].y * height);
                 }
             }
 
-            ctx.stroke();
+
         });
         ctx.restore();
     }

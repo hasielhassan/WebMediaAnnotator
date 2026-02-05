@@ -9,7 +9,7 @@ export class HeicAdapter implements MediaAdapter {
         return /\.(heic|heif)$/.test(name);
     }
 
-    async load(file: File, onProgress?: (progress: number) => void): Promise<HTMLImageElement> {
+    async load(file: File, _onProgress?: (progress: number) => void): Promise<HTMLImageElement> {
         // Dynamic import
         const heic2any = await import('heic2any');
 

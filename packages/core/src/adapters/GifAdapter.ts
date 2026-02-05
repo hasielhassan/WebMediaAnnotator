@@ -23,14 +23,12 @@ export class GifAdapter implements MediaAdapter {
         return file.type === 'image/gif' || ext === 'gif';
     }
 
-    async load(file: File, onProgress?: (progress: number) => void): Promise<GifCanvasElement> {
+    async load(file: File, _onProgress?: (progress: number) => void): Promise<GifCanvasElement> {
         // 1. Load ArrayBuffer
         const buffer = await file.arrayBuffer();
 
         // 2. Parse GIF
-        // @ts-ignore
         const gif = parseGIF(buffer);
-        // @ts-ignore
         const frames = decompressFrames(gif, true); // buildImagePatches = true
 
         if (!frames || frames.length === 0) {
@@ -51,11 +49,12 @@ export class GifAdapter implements MediaAdapter {
         // 4. Setup Playback State
         let currentFrameIndex = 0;
         let isPlaying = false;
-        let startTime = 0;
-        let lastFrameTime = 0;
+        // let startTime = 0;
         let animationFrameId: number | null = null;
+        let lastFrameTime = 0;
 
         // Calculate total duration (in seconds)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const totalDurationMs = frames.reduce((acc: number, frame: any) => acc + (frame.delay || 100), 0);
         const duration = totalDurationMs / 1000;
 
@@ -85,10 +84,10 @@ export class GifAdapter implements MediaAdapter {
         // We'll iterate and apply patches to a "canvas buffer" and save snapshots.
 
         if (tempCtx) {
-            let frameCanvas = document.createElement('canvas');
+            const frameCanvas = document.createElement('canvas');
             frameCanvas.width = width;
             frameCanvas.height = height;
-            let frameCtx = frameCanvas.getContext('2d');
+            const frameCtx = frameCanvas.getContext('2d');
 
             for (let i = 0; i < frames.length; i++) {
                 const frame = frames[i];

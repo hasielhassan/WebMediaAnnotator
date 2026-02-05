@@ -39,6 +39,8 @@ jobs:
           npm run build -w @web-media-annotator/ui
           npm run build -w @web-media-annotator/react
           npm run build -w @web-media-annotator/embed
+          # Build self-contained bundle for standalone HTML use
+          npm run build:bundle -w @web-media-annotator/embed
 
       - name: Build Demo App
         # Building the demo app specifically. 

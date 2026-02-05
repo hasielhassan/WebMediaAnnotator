@@ -3,11 +3,18 @@ import { Peer, DataConnection } from 'peerjs';
 import * as Y from 'yjs';
 
 // Protocol Message Types
-type Message =
-    | { type: 'sync-step-1'; data: Uint8Array } // Send State Vector
-    | { type: 'sync-step-2'; data: Uint8Array } // Send Update (Diff)
-    | { type: 'update'; data: Uint8Array }      // Incremental Update
-    | { type: 'announce-user'; user: any }
+// Protocol Message Types
+interface SyncUser {
+    id: string;
+    name: string;
+    color: string;
+}
+
+export type Message =
+    | { type: 'sync-step-1'; data: number[] } // Send State Vector (as Array for JSON compat)
+    | { type: 'sync-step-2'; data: number[] } // Send Update (Diff) (as Array for JSON compat)
+    | { type: 'update'; data: number[] }      // Incremental Update (as Array for JSON compat)
+    | { type: 'announce-user'; user: SyncUser }
     | { type: 'playback'; action: 'play' | 'pause' | 'seek'; frame?: number; time?: number }
     | { type: 'ping' };
 
@@ -29,9 +36,10 @@ export class LinkSync extends EventEmitter {
     private _peerId: string | null = null;
 
     // Yjs Types
-    public annotationsMap: Y.Map<any>; // ID -> Annotation Data
-    public sessionMap: Y.Map<any>; // Session Settings (Ghosting etc)
-    public usersMap: Y.Map<any>; // Connected Users
+    // Yjs Types
+    public annotationsMap: Y.Map<unknown>; // ID -> Annotation Data
+    public sessionMap: Y.Map<unknown>; // Session Settings (Ghosting etc)
+    public usersMap: Y.Map<unknown>; // Connected Users
 
     constructor(
         private signalingServer?: { host: string; port: number; path: string }
@@ -44,11 +52,14 @@ export class LinkSync extends EventEmitter {
 
         // Listen for LOCAL updates to the doc (e.g. user draws something)
         // and broadcast them to peers.
-        this.doc.on('update', (update: Uint8Array, origin: any) => {
+        // Listen for LOCAL updates to the doc (e.g. user draws something)
+        // and broadcast them to peers.
+        this.doc.on('update', (update: Uint8Array, origin: unknown) => {
             // 'origin' is useful to distinguish local vs remote.
             // If origin is NOT this class instance, it means it's a local change (from Store).
             if (origin !== this) {
-                this.broadcast({ type: 'update', data: update });
+                // Convert Uint8Array to Array for JSON serialization over PeerJS
+                this.broadcast({ type: 'update', data: Array.from(update) });
             }
         });
     }
@@ -84,15 +95,15 @@ export class LinkSync extends EventEmitter {
     }
 
     private initPeer(): Promise<string> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve, _reject) => {
             const options = this.signalingServer ? {
                 host: this.signalingServer.host,
                 port: this.signalingServer.port,
                 path: this.signalingServer.path
             } : undefined;
 
-            this.peer = new Peer(undefined as any, {
-                // @ts-ignore
+            this.peer = new Peer(undefined as unknown as string, {
+
                 ...options,
                 debug: 1
             });
@@ -133,7 +144,8 @@ export class LinkSync extends EventEmitter {
 
             // 1. Send Sync Step 1: My State Vector
             const stateVector = Y.encodeStateVector(this.doc);
-            if (conn.open) conn.send({ type: 'sync-step-1', data: stateVector });
+            // Convert Uint8Array to Array for JSON serialization over PeerJS
+            if (conn.open) conn.send({ type: 'sync-step-1', data: Array.from(stateVector) });
 
             // 2. Announce User Trigger
             this.emit('request-announce');
@@ -187,25 +199,29 @@ export class LinkSync extends EventEmitter {
             switch (msg.type) {
                 case 'sync-step-1': {
                     // They sent their State Vector. We calculate Diff (what they are missing) and send it back.
-                    const data = new Uint8Array(msg.data as any);
+                    // Convert back from Array to Uint8Array (PeerJS JSON serialization)
+                    const data = new Uint8Array(msg.data);
                     const diff = Y.encodeStateAsUpdate(this.doc, data);
-                    if (conn.open) conn.send({ type: 'sync-step-2', data: diff });
+                    // Convert Uint8Array to Array for sending
+                    if (conn.open) conn.send({ type: 'sync-step-2', data: Array.from(diff) });
                     break;
                 }
                 case 'sync-step-2': {
                     // They sent the Diff. We apply it.
-                    const data = new Uint8Array(msg.data as any);
+                    // Convert back from Array to Uint8Array
+                    const data = new Uint8Array(msg.data);
                     Y.applyUpdate(this.doc, data, this);
                     break;
                 }
                 case 'update': {
                     // Incremental update
-                    const data = new Uint8Array(msg.data as any);
+                    // Convert back from Array to Uint8Array
+                    const data = new Uint8Array(msg.data);
                     Y.applyUpdate(this.doc, data, this);
 
                     // HOST RELAY LOGIC
                     if (this.isHost) {
-                        // Forward to all OTHER peers
+                        // Forward to all OTHER peers (msg already has Array data format)
                         this.connections.forEach((otherConn) => {
                             if (otherConn.peer !== conn.peer && otherConn.open) {
                                 otherConn.send(msg);
@@ -262,9 +278,9 @@ export class LinkSync extends EventEmitter {
     }
 
     // User Identity
-    public connectedUsers = new Map<string, { id: string, name: string, color: string }>();
+    public connectedUsers = new Map<string, SyncUser>();
 
-    public announceUser(user: { id: string, name: string, color: string }) {
+    public announceUser(user: SyncUser) {
         this.broadcast({ type: 'announce-user', user });
         // Add self
         this.connectedUsers.set(this._peerId!, user);

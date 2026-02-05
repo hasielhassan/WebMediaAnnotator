@@ -1,5 +1,5 @@
 import { BaseTool } from './BaseTool';
-import { Store, Annotation } from '../Store';
+import { Annotation } from '../Store';
 import { v4 as uuidv4 } from 'uuid';
 
 export class FreehandTool extends BaseTool {
@@ -59,7 +59,7 @@ export class FreehandTool extends BaseTool {
         this.store.updateAnnotation('temp_drawing', { points: this.currentPoints });
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseUp(_x: number, _y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDrawing) return;
         this.isDrawing = false;
 

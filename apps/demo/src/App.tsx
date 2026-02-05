@@ -3,24 +3,35 @@
  * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 import { Annotator } from '@web-media-annotator/react';
+import { PolyLinePlugin } from '@web-media-annotator/core';
 
 function App() {
     return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center p-8 bg-gray-950">
-            <h1 className="text-2xl font-bold mb-4">Web Media Annotator Demo</h1>
+        <div className="w-screen h-screen flex flex-col bg-gray-950 overflow-hidden">
+            {/* Header - Hidden on very small screens to maximize space */}
+            <header className="p-4 flex items-center justify-between shrink-0 hidden lg:flex">
+                <h1 className="text-xl font-bold text-white">Web Media Annotator Demo</h1>
+                <div className="text-sm text-gray-500">v0.1.0</div>
+            </header>
 
-            <div className="w-full max-w-5xl aspect-video border border-gray-800 rounded-lg overflow-hidden shadow-2xl">
-                <Annotator
-                    src="./mov_bbb.mp4"
-                    fps={24}
-                    startFrame={1001} // Example offset
-                />
-            </div>
+            {/* Main Content Area - Maximized */}
+            <main className="flex-1 relative w-full h-full flex flex-col items-center justify-center p-0 lg:p-4 xl:p-6">
+                <div className="w-full h-full lg:w-full lg:h-full lg:max-w-6xl lg:aspect-video aspect-[9/16] lg:aspect-auto border-0 lg:border border-gray-800 lg:rounded-lg overflow-hidden shadow-2xl bg-black relative">
+                    <Annotator
+                        src="/mov_bbb.mp4"
+                        fps={24}
+                        startFrame={1001}
+                        className="w-full h-full absolute inset-0"
+                        onReady={(core) => {
+                            core.plugins.register(PolyLinePlugin);
+                        }}
+                    />
+                </div>
+            </main>
 
-            <p className="mt-4 text-gray-500">
-                Try drawing! Tools: Select, Pencil, Square, Circle, Arrow.
-                <br />
-                Play/Pause and Scrub the timeline.
+            {/* Footer / Instructions - Hidden on mobile */}
+            <p className="hidden lg:block text-center p-4 text-gray-500 text-sm shrink-0">
+                Tools: Select (S), Pencil (P), Shape (Q/C/A). Controls: Space (Play/Pause), Arrows (Frame Step).
             </p>
         </div>
     );

@@ -1,5 +1,12 @@
 import React from 'react';
-import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand, Grab, Clock } from 'lucide-react';
+import {
+    MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Ghost, Hand, Grab, Waypoints, MoveUpRight,
+    Triangle, Star, Hexagon, Diamond, Cloud, MessageSquare, Highlighter,
+    Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize, Minimize,
+    Copy, Clipboard, Scissors, Save, FolderOpen, Settings, Layers, Grid, Ruler, ZoomIn, ZoomOut,
+    ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+    Ticket // Example generic
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { Popover } from './Popover';
 
@@ -32,7 +39,47 @@ export interface ToolbarProps {
 
     // Mode
     isImageMode?: boolean;
+    isMobile?: boolean; // New prop for wrapping behavior
+    // Tool Definitions
+    tools?: { id: string, label: string, icon: React.ElementType | string }[];
+    children?: React.ReactNode;
+    prefix?: React.ReactNode;
 }
+
+const ICON_MAP: Record<string, React.ElementType> = {
+    'mouse-pointer': MousePointer2,
+    'pencil': Pencil,
+    'circle': Circle,
+    'square': Square,
+    'arrow': MoveRight,
+    'type': Type,
+    'eraser': Eraser,
+    'trash': Trash2,
+    'ghost': Ghost,
+    'hand': Hand,
+    'grab': Grab,
+    'waypoints': Waypoints,
+    'move-up-right': MoveUpRight,
+    'arrow-right': MoveRight, // Alias fallback
+
+    // Shapes
+    'triangle': Triangle, 'star': Star, 'hexagon': Hexagon, 'diamond': Diamond,
+    'cloud': Cloud, 'comment': MessageSquare, 'highlighter': Highlighter,
+
+    // Media
+    'play': Play, 'pause': Pause, 'skip-forward': SkipForward, 'skip-back': SkipBack,
+    'volume': Volume2, 'mute': VolumeX, 'maximize': Maximize, 'minimize': Minimize,
+
+    // Utility
+    'copy': Copy, 'paste': Clipboard, 'cut': Scissors, 'save': Save, 'open': FolderOpen,
+    'settings': Settings, 'layers': Layers, 'grid': Grid, 'ruler': Ruler,
+    'zoom-in': ZoomIn, 'zoom-out': ZoomOut,
+    'ticket': Ticket,
+
+    // Navigation
+    'up': ArrowUp, 'down': ArrowDown, 'left': ArrowLeft, 'right': ArrowRight,
+    'chevron-up': ChevronUp, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft, 'chevron-right': ChevronRight,
+};
 
 export const Toolbar: React.FC<ToolbarProps> = ({
     activeTool, onToolSelect, onClear, className, orientation = 'vertical',
@@ -41,9 +88,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     holdDuration = 1, onHoldDurationChange,
     isOnionSkinEnabled, onToggleOnionSkin,
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange,
-    isImageMode = false
+    isImageMode = false,
+    isMobile = false,
+    tools: providedTools, // [NEW] dynamic tools
+    children,
+    prefix
 }) => {
-    const tools = [
+    // Default fallback if not provided (though we expect dynamic ones now)
+    const defaultTools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
         { id: 'pan', icon: Grab, label: 'Pan (Grab)' },
         { id: 'freehand', icon: Pencil, label: 'Pencil' },
@@ -53,6 +105,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { id: 'text', icon: Type, label: 'Text' },
         { id: 'eraser', icon: Eraser, label: 'Eraser' },
     ];
+
+    const toolsToRender = providedTools || defaultTools;
 
     const colors = ['#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
 
@@ -65,18 +119,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     const [localPrevFrames, setLocalPrevFrames] = React.useState(onionSkinPrevFrames);
     const [localNextFrames, setLocalNextFrames] = React.useState(onionSkinNextFrames);
 
-    // Sync local state with props when popover opens, but ONLY check if values differ significantly to avoid loops
-    // We only want to reset local state if the prop changed from an external source (like a preset load),
-    // NOT if it changed because *we* just updated it. 
-    // For now, we'll just sync when the popover opens to ensure it's fresh.
+    // Sync local state with props when popover opens
     React.useEffect(() => {
         if (isGhostingOpen) {
             setLocalPrevFrames(onionSkinPrevFrames);
             setLocalNextFrames(onionSkinNextFrames);
         }
     }, [isGhostingOpen]);
-    // Note: Removed [onionSkinPrevFrames, ...] from dependency because it causes the "stuck" behavior 
-    // if the parent updates slower than the user drags, snapping the slider back.
 
     // Debounce updates to parent
     React.useEffect(() => {
@@ -92,7 +141,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     return (
         <div className={clsx(
             "flex gap-2 p-2 bg-gray-900 border-gray-800",
-            isHorizontal ? "flex-row border-b items-center" : "flex-col border-r",
+            // Desktop: nowrap + overflow. Mobile: wrap + no overflow mechanism needed usually, just expands height.
+            isHorizontal
+                ? (isMobile ? "flex-row flex-wrap border-b items-center justify-center" : "flex-row flex-nowrap border-b items-center overflow-x-auto no-scrollbar")
+                : "flex-col border-r",
             className
         )}>
             <style>{`
@@ -123,19 +175,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 }
             `}</style>
 
-            {tools.map(tool => (
-                <button
-                    key={tool.id}
-                    title={tool.label}
-                    onClick={() => onToolSelect(tool.id)}
-                    className={clsx(
-                        "p-2 rounded hover:bg-gray-700 text-white transition-colors",
-                        activeTool === tool.id ? "bg-blue-600 hover:bg-blue-500" : "bg-transparent"
-                    )}
-                >
-                    <tool.icon size={20} />
-                </button>
-            ))}
+            {prefix}
+
+            {toolsToRender.map(tool => {
+                const Icon = typeof tool.icon === 'string' ? (ICON_MAP[tool.icon] || MousePointer2) : tool.icon;
+                return (
+                    <button
+                        key={tool.id}
+                        title={tool.label}
+                        onClick={() => onToolSelect(tool.id)}
+                        className={clsx(
+                            "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors",
+                            activeTool === tool.id ? "bg-blue-600 hover:bg-blue-500" : "bg-transparent"
+                        )}
+                    >
+                        <Icon size={24} />
+                    </button>
+                );
+            })}
 
             <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />
 
@@ -146,13 +203,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     <button
                         title="Toggle Global Hold (Hand)"
                         className={clsx(
-                            "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                            "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors relative",
                             (holdDuration || 1) > 1 ? "bg-orange-900/50 text-orange-400" : "bg-transparent text-gray-400"
                         )}
                     >
-                        <Hand size={20} />
+                        <Hand size={24} />
                         {(holdDuration || 1) > 1 && (
-                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
+                            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center bg-orange-600 text-white text-[9px] font-bold rounded-full border border-gray-900">
                                 {holdDuration}
                             </span>
                         )}
@@ -203,13 +260,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                         <button
                             title="Onion Skin (Ghosting)"
                             className={clsx(
-                                "p-2 rounded hover:bg-gray-700 text-white transition-colors relative",
+                                "h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-white transition-colors relative",
                                 isOnionSkinEnabled ? "bg-purple-600 hover:bg-purple-500" : "bg-transparent"
                             )}
                         >
-                            <Ghost size={20} />
+                            <Ghost size={24} />
                             {isOnionSkinEnabled && (
-                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                <span className="absolute top-1 right-1 flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
@@ -275,7 +332,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 trigger={
                     <button
                         title="Stroke Color"
-                        className="relative p-2 rounded hover:bg-gray-700 transition-colors w-10 h-10 flex items-center justify-center"
+                        className="relative h-11 w-11 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center"
                     >
                         <div
                             className="w-6 h-6 rounded-full border border-gray-400"
@@ -324,7 +381,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 trigger={
                     <button
                         title="Stroke Width / Text Size"
-                        className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10"
+                        className="h-11 w-11 rounded-lg hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs"
                     >
                         {activeStrokeWidth}px
                     </button>
@@ -367,7 +424,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     trigger={
                         <button
                             title="New Annotation Duration"
-                            className="p-2 rounded hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs w-10 h-10 bg-transparent text-gray-400"
+                            className="h-11 w-11 rounded-lg hover:bg-gray-700 text-white transition-colors flex items-center justify-center font-bold text-xs bg-transparent text-gray-400"
                         >
                             {defaultDuration}fr
                         </button>
@@ -407,15 +464,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 />
             )}
 
+            {children && <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />}
+
+            {children}
+
             <div className="flex-1" />
 
             {onClear && (
                 <button
                     title="Clear All"
                     onClick={onClear}
-                    className="p-2 rounded hover:bg-red-900/50 text-red-400 transition-colors"
+                    className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/50 text-red-500 transition-colors"
                 >
-                    <Trash2 size={20} />
+                    <Trash2 size={24} />
                 </button>
             )}
         </div>

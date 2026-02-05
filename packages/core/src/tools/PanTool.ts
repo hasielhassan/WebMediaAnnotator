@@ -34,7 +34,7 @@ export class PanTool extends BaseTool {
         this.lastY = e.clientY;
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent): void {
+    onMouseUp(_x: number, _y: number, _e: MouseEvent | PointerEvent): void {
         this.isDragging = false;
     }
 }

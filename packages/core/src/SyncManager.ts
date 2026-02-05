@@ -3,7 +3,7 @@ import { Player } from './Player';
 
 export interface SyncAction {
     type: string;
-    payload: any;
+    payload: unknown;
     timestamp: number;
     source?: string;
 }
@@ -41,7 +41,7 @@ export class SyncManager {
         });
     }
 
-    private emitAction(type: string, payload: any) {
+    private emitAction(type: string, payload: unknown) {
         if (this.dispatchCallback) {
             this.dispatchCallback({
                 type,
@@ -62,11 +62,12 @@ export class SyncManager {
                 this.player.pause();
                 break;
             case 'SEEK':
-                this.player.seekToFrame(action.payload.frame);
+                this.player.seekToFrame((action.payload as { frame: number }).frame);
                 break;
             case 'ANNOTATION_ADDED':
                 // Check if exists to avoid dups?
-                this.store.addAnnotation(action.payload);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                this.store.addAnnotation(action.payload as any);
                 break;
             // ... handle other actions
         }

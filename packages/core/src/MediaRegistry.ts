@@ -1,10 +1,7 @@
-import { MediaAdapter, MediaInfo } from './adapters/MediaAdapter';
+import type { MediaAdapter, MediaInfo } from './adapters/MediaAdapter';
 import { NativeAdapter } from './adapters/NativeAdapter';
 
 // We will dynamically import other adapters to avoid bloat
-// import { FfmpegAdapter } from './adapters/FfmpegAdapter';
-// import { HeicAdapter } from './adapters/HeicAdapter';
-// import { PsdAdapter } from './adapters/PsdAdapter';
 
 export class MediaRegistry {
     private adapters: MediaAdapter[] = [];
@@ -77,7 +74,7 @@ export class MediaRegistry {
         // Basic validation
         if (file.size === 0) throw new Error("File is empty");
 
-        const adapter = await this.getAdapter(file);
+        await this.getAdapter(file);
 
         return {
             name: file.name,

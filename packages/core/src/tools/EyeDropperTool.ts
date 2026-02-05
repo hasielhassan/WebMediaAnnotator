@@ -6,11 +6,15 @@ export class EyeDropperTool extends BaseTool {
         super(annotator);
     }
 
-    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseDown(x: number, y: number, _e: MouseEvent | PointerEvent) {
         this.onPickColor(x, y);
         // Switch back to previous tool?
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) { }
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) { }
+    onMouseMove(_x: number, _y: number, _e: MouseEvent | PointerEvent) {
+        // No-op
+    }
+    onMouseUp(_x: number, _y: number, _e: MouseEvent | PointerEvent) {
+        // No-op
+    }
 }

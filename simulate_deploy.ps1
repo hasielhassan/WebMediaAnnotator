@@ -5,7 +5,11 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
 # 0. Build Packages
 Write-Host "Building packages..."
-npm run build --workspaces
+npm run build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "Building self-contained embed bundle..."
+npm run build:bundle -w packages/embed
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 1. Landing Page

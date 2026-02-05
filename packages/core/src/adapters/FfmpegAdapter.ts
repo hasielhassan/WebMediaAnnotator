@@ -3,10 +3,11 @@ import { MediaAdapter } from './MediaAdapter';
 export class FfmpegAdapter implements MediaAdapter {
     id = 'ffmpeg';
     type: 'video' | 'image' = 'video';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private ffmpeg: any = null;
 
     async canHandle(file: File): Promise<boolean> {
-        const type = file.type;
+        // const type = file.type; // Unused
         const name = file.name.toLowerCase();
 
         // Formats that browsers often struggle with or don't support
@@ -45,7 +46,7 @@ export class FfmpegAdapter implements MediaAdapter {
                     coreURL: coreURL,
                     wasmURL: wasmURL,
                 });
-            } catch (e: any) {
+            } catch (e: unknown) {
                 console.error("FFmpeg load failed:", e);
                 if (window.location.protocol === 'file:') {
                     throw new Error("Advanced video support (.mov) requires running on a local server (http://localhost) due to browser security restrictions on 'file://' protocol. Please use 'npx serve' or similar.");
@@ -60,7 +61,7 @@ export class FfmpegAdapter implements MediaAdapter {
         await this.ffmpeg.writeFile(inputName, await fetchFile(file));
 
         // Transcode to MP4 (H.264/AAC) - fast preset for speed
-        this.ffmpeg.on('progress', ({ progress, time }: { progress: number, time: number }) => {
+        this.ffmpeg.on('progress', ({ progress }: { progress: number, time: number }) => {
             console.log(`FFmpeg Progress: ${(progress * 100).toFixed(1)}%`);
             if (onProgress) onProgress(progress);
         });

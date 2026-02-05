@@ -1,5 +1,5 @@
 import { BaseTool } from './BaseTool';
-import { Store, Annotation } from '../Store';
+import { Annotation } from '../Store';
 
 export class SelectTool extends BaseTool {
     private isDragging = false;
@@ -68,7 +68,7 @@ export class SelectTool extends BaseTool {
         }
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseMove(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDragging || !this.startDragPoint || this.initialAnnotations.size === 0) return;
 
         const dx = x - this.startDragPoint.x;
@@ -87,7 +87,7 @@ export class SelectTool extends BaseTool {
         });
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseUp(_x: number, _y: number, _e: MouseEvent | PointerEvent) {
         if (this.isDragging) {
             this.store.captureSnapshot();
         }
