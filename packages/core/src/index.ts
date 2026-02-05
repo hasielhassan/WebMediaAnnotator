@@ -2,7 +2,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
-import { Store, AppState, Annotation } from './Store';
+import { Store, Annotation } from './Store';
+// import { AppState } from './Store';
 import { Player } from './Player';
 import { LinkSync, Message } from './LinkSync';
 import { Renderer } from './Renderer';
@@ -17,7 +18,7 @@ import { EyeDropperTool } from './tools/EyeDropperTool';
 import { PanTool } from './tools/PanTool';
 import JSZip from 'jszip';
 import { MediaRegistry } from './MediaRegistry';
-import { MediaAdapter } from './adapters/MediaAdapter';
+// import { MediaAdapter } from './adapters/MediaAdapter';
 
 export class WebMediaAnnotator {
     public store: Store;
@@ -84,8 +85,8 @@ export class WebMediaAnnotator {
                         if (!response.ok) throw new Error(`Failed to fetch ${src}: ${response.statusText}`);
 
                         const contentLength = response.headers.get('content-length');
-                        const total = contentLength ? parseInt(contentLength, 10) : 0;
-                        let loaded = 0;
+                        // const total = contentLength ? parseInt(contentLength, 10) : 0;
+                        // let loaded = 0;
 
                         const reader = response.body?.getReader();
                         const chunks: Uint8Array[] = [];
@@ -96,7 +97,7 @@ export class WebMediaAnnotator {
                                 if (done) break;
                                 if (value) {
                                     chunks.push(value);
-                                    loaded += value.length;
+                                    // loaded += value.length;
                                     // Optional: Dispatch event for UI
                                     // if (total) console.log(`Loading: ${Math.round(loaded/total*100)}%`);
                                 }
@@ -238,7 +239,8 @@ export class WebMediaAnnotator {
             return {
                 x: (e.clientX - rect.left) / rect.width,
                 y: (e.clientY - rect.top) / rect.height,
-                pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
+                // pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
+                pressure: (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5
             };
         };
 
@@ -321,6 +323,7 @@ export class WebMediaAnnotator {
                 const y = (e.clientY - rect.top) / rect.height;
                 if (panTool) panTool.onMouseUp(x, y, e);
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 this.store.setState({ activeTool: this.previousTool as any });
                 this.previousTool = null;
                 return;
@@ -439,7 +442,7 @@ export class WebMediaAnnotator {
                     break;
 
                 case 'delete':
-                case 'backspace':
+                case 'backspace': {
                     const selIds = this.store.getState().selectedAnnotationIds;
                     if (selIds.length > 0) {
                         selIds.forEach(id => this.store.deleteAnnotation(id));
@@ -447,6 +450,7 @@ export class WebMediaAnnotator {
                         this.store.captureSnapshot();
                     }
                     break;
+                }
 
                 // Playback
                 case ' ': // Spacebar
@@ -478,7 +482,7 @@ export class WebMediaAnnotator {
                 case 'e': this.store.setState({ activeTool: 'eraser', selectedAnnotationIds: [] }); break;
 
                 // Toggles
-                case 'g':
+                case 'g': {
                     const isCurrentlyEnabled = this.store.getState().isOnionSkinEnabled;
 
                     if (!isCurrentlyEnabled) {
@@ -489,8 +493,9 @@ export class WebMediaAnnotator {
                         this.store.setState({ isOnionSkinEnabled: false });
                     }
                     break;
+                }
 
-                case 'h':
+                case 'h': {
                     const currentDur = this.store.getState().holdDuration;
                     if (currentDur > 1) {
                         this.store.setState({ holdDuration: 1 });
@@ -499,6 +504,7 @@ export class WebMediaAnnotator {
                         this.store.setState({ holdDuration: 24, isOnionSkinEnabled: false });
                     }
                     break;
+                }
 
                 // View
                 case 'r':
@@ -507,15 +513,17 @@ export class WebMediaAnnotator {
 
                 // Stroke Width
                 case '=': // + without shift
-                case '+':
+                case '+': {
                     const newWidthInc = Math.min(20, this.store.getState().activeStrokeWidth + 1);
                     this.store.setState({ activeStrokeWidth: newWidthInc });
                     break;
+                }
                 case '-':
-                case '_':
+                case '_': {
                     const newWidthDec = Math.max(1, this.store.getState().activeStrokeWidth - 1);
                     this.store.setState({ activeStrokeWidth: newWidthDec });
                     break;
+                }
             }
         });
     }
@@ -848,7 +856,6 @@ export class WebMediaAnnotator {
 
         if (element instanceof HTMLVideoElement) {
             element.controls = false;
-            // @ts-ignore
             element.disablePictureInPicture = true;
             element.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
             element.setAttribute('playsinline', 'true');

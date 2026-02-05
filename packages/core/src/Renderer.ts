@@ -1,4 +1,5 @@
-import { Store, Annotation } from './Store';
+import { Store } from './Store';
+import type { Annotation } from './Store';
 
 export class Renderer {
     public canvas: HTMLCanvasElement;
@@ -224,8 +225,8 @@ export class Renderer {
                         const p2 = points[i];
                         const radius2 = (annotation.style.width / 2) * scaleFactor * (p2.p !== undefined ? p2.p * 2 : 1);
 
-                        const cx = (p1.x + p2.x) / 2 * width;
-                        const cy = (p1.y + p2.y) / 2 * height;
+                        // const cx = (p1.x + p2.x) / 2 * width;
+                        // const cy = (p1.y + p2.y) / 2 * height;
 
                         // We use the average pressure for the segment or interpolation?
                         // Simple approach: each segment has its own width. 
@@ -290,7 +291,7 @@ export class Renderer {
                     const x = Math.min(p1.x, p2.x) * width;
                     const y = Math.min(p1.y, p2.y) * height;
                     const w = Math.abs(p2.x - p1.x) * width;
-                    const h = Math.abs(p2.y - p1.y) * height; // Not strictly used for cut-off yet, but good to have
+                    // const h = Math.abs(p2.y - p1.y) * height;
 
                     const words = annotation.text.split(' ');
                     let line = '';

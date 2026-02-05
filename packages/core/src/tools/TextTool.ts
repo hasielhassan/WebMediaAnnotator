@@ -12,6 +12,7 @@ export class TextTool extends BaseTool {
     private finishEditing: (() => Promise<void>) | null = null;
     private font: opentype.Font | null = null;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor(annotator: any) {
         super(annotator);
         this.loadFont();
@@ -31,7 +32,7 @@ export class TextTool extends BaseTool {
         }
     }
 
-    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseDown(x: number, y: number, _e: MouseEvent | PointerEvent) {
         // If already editing, finish that first
         if (this.isEditing && this.finishEditing) {
             this.finishEditing();
@@ -54,13 +55,13 @@ export class TextTool extends BaseTool {
         this.createTempBox(x, y, x, y);
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseMove(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDragging || !this.startPoint) return;
         this.currentPoint = { x, y };
         this.createTempBox(this.startPoint.x, this.startPoint.y, x, y);
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseUp(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (!this.isDragging || !this.startPoint) return;
         this.isDragging = false;
 
@@ -113,9 +114,9 @@ export class TextTool extends BaseTool {
 
     private openInput(p1: { x: number, y: number }, p2: { x: number, y: number }, existingId?: string, initialText: string = '') {
         this.isEditing = true;
-        const container = (this.annotator as any)['container'] as HTMLElement;
+        const container = (this.annotator as unknown as { container: HTMLElement }).container;
         const state = this.store.getState();
-        const canvas = (this.annotator as any).renderer.canvas as HTMLCanvasElement; // Access internal canvas
+        const canvas = (this.annotator as unknown as { renderer: { canvas: HTMLCanvasElement } }).renderer.canvas; // Access internal canvas
 
         // 1. Project Image Coords (0..1) -> Canvas Pixels -> Screen Pixels relative to Container
         const canvasRect = canvas.getBoundingClientRect();
@@ -167,7 +168,7 @@ export class TextTool extends BaseTool {
         this.finishEditing = async () => {
             if (!this.activeInput) return;
             const text = this.activeInput.value;
-            const canvas = (this.annotator as any).renderer.canvas as HTMLCanvasElement; // Re-access
+            const canvas = (this.annotator as unknown as { renderer: { canvas: HTMLCanvasElement } }).renderer.canvas; // Re-access
 
             // Capture final geometry (in case user resized)
             const inputRect = this.activeInput.getBoundingClientRect();
@@ -200,7 +201,7 @@ export class TextTool extends BaseTool {
                 let fallbackPaths = undefined;
                 if (this.font) {
                     try {
-                        const words = text.split(' ');
+                        // const words = text.split(' '); // Unused
                         const path = this.font.getPath(text, 0, fontSize, fontSize);
                         // Store the command list directly or simplified
                         fallbackPaths = path.commands;

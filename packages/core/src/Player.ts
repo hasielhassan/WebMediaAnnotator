@@ -40,7 +40,7 @@ export class Player {
         }
 
         // Video or Canvas(GIF)
-        const playable = this.mediaElement as any;
+        const playable = this.mediaElement as unknown as HTMLVideoElement;
 
         const updateDuration = () => {
             if (playable.duration) {
@@ -131,7 +131,8 @@ export class Player {
         if (this.audioBuffer) return; // Already initialized for this media
 
         if (!this.audioContext) {
-            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            this.audioContext = new AudioContextClass();
         }
 
         // Load audio from video src
@@ -140,8 +141,10 @@ export class Player {
                 console.log("[Core] Initializing Audio Scrubbing Buffer...");
                 let arrayBuffer: ArrayBuffer;
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 if ((this.mediaElement as any).__rawFile) {
                     // Fast path: direct file access (bypasses SW/fetch issues)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const file = (this.mediaElement as any).__rawFile as File;
                     console.log(`[Core] Reading audio from attached File object (${file.name})...`);
                     arrayBuffer = await file.arrayBuffer();
@@ -193,7 +196,7 @@ export class Player {
     // Public API //
 
     play() {
-        const playable = this.mediaElement as any;
+        const playable = this.mediaElement as unknown as HTMLVideoElement;
         if (typeof playable.play === 'function') {
             playable.play();
         } else {
@@ -203,7 +206,7 @@ export class Player {
     }
 
     pause() {
-        const playable = this.mediaElement as any;
+        const playable = this.mediaElement as unknown as HTMLVideoElement;
         if (typeof playable.pause === 'function') {
             playable.pause();
         } else {
@@ -215,7 +218,7 @@ export class Player {
         const fps = this.store.getState().fps;
         const time = frame / fps;
 
-        const playable = this.mediaElement as any;
+        const playable = this.mediaElement as unknown as HTMLVideoElement;
         // Check if writable currentTime (Video or GiftAdapter)
         if ('currentTime' in playable) {
             playable.currentTime = time;

@@ -246,7 +246,8 @@ export class Store extends EventEmitter {
         });
 
         // 2. Apply non-annotation state (viewport, tool etc) directly
-        const { annotations, ...rest } = targetState;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { annotations: _unused, ...rest } = targetState;
         this.setState(rest);
     }
 

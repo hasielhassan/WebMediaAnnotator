@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Palette, Settings2, Ghost, Hand, Grab, Clock } from 'lucide-react';
+import { MousePointer2, Pencil, Circle, Square, MoveRight, Type, Eraser, Trash2, Ghost, Hand, Grab } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Popover } from './Popover';
 

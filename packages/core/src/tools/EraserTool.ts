@@ -1,21 +1,20 @@
 import { BaseTool } from './BaseTool';
-import { Store } from '../Store';
 
 export class EraserTool extends BaseTool {
     private isErasing = false;
 
-    onMouseDown(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseDown(x: number, y: number, _e: MouseEvent | PointerEvent) {
         this.isErasing = true;
         this.eraseAt(x, y);
     }
 
-    onMouseMove(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseMove(x: number, y: number, _e: MouseEvent | PointerEvent) {
         if (this.isErasing) {
             this.eraseAt(x, y);
         }
     }
 
-    onMouseUp(x: number, y: number, e: MouseEvent | PointerEvent) {
+    onMouseUp(_x: number, _y: number, _e: MouseEvent | PointerEvent) {
         if (this.isErasing) {
             this.store.captureSnapshot();
         }
@@ -35,10 +34,12 @@ export class EraserTool extends BaseTool {
         }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private hitTest(ann: any, x: number, y: number): boolean {
         // Reuse same logic or import helper
         if (!ann.points || ann.points.length === 0) return false;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ann.points.forEach((p: any) => {
             minX = Math.min(minX, p.x);
             minY = Math.min(minY, p.y);

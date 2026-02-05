@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { WebMediaAnnotator } from '@web-media-annotator/core';
-import { Users, Wifi, WifiOff, Copy, Link as LinkIcon, Lock } from 'lucide-react';
+import { Users, Copy, Link as LinkIcon } from 'lucide-react';
 import { Popover } from '@web-media-annotator/ui';
 
 interface SyncPanelProps {
@@ -11,14 +11,15 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ annotator }) => {
     // Core State
     const [isConnected, setIsConnected] = useState(false);
     const [peerId, setPeerId] = useState<string>('');
-    const [users, setUsers] = useState<number>(0);
+    // const [_users, setUsers] = useState<number>(0);
     const [targetId, setTargetId] = useState('');
     const [isHost, setIsHost] = useState(true);
 
     // User Identity State
     const [username, setUsername] = useState<string>('');
     const [userColor, setUserColor] = useState<string>('#3b82f6');
-    const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [connectedUsers, setConnectedUsers] = useState<{ id: string, name: string, color: string }[]>([]);
 
     useEffect(() => {
         // Generate random user on mount
@@ -45,12 +46,12 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ annotator }) => {
         const onClose = () => {
             setIsConnected(false);
             setPeerId('');
-            setUsers(0);
+            // setUsers(0);
             setConnectedUsers([]);
         };
-        const onUsersChanged = (usersList: any[]) => {
+        const onUsersChanged = (usersList: { id: string, name: string, color: string }[]) => {
             setConnectedUsers(usersList);
-            setUsers(usersList.length);
+            // setUsers(usersList.length);
         };
 
         sync.on('ready', onOpen);
@@ -83,7 +84,7 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ annotator }) => {
         if (!annotator) return;
         setIsHost(true);
         // Set username in sync BEFORE creating session? Or just rely on 'ready' event which triggers onOpen
-        const id = await annotator.sync.createSession();
+        await annotator.sync.createSession();
         // onOpen will fire
     };
 
@@ -215,7 +216,7 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ annotator }) => {
                             <div className="pt-2 border-t border-gray-800">
                                 <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
                                     <input type="checkbox" className="rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-0"
-                                        onChange={() => { }}
+                                        onChange={() => { /* no-op */ }}
                                     />
                                     <span>Sync Viewport (Experimental)</span>
                                 </label>

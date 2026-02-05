@@ -9,7 +9,7 @@ export class PsdAdapter implements MediaAdapter {
         return /\.(psd|psb)$/.test(name);
     }
 
-    async load(file: File, onProgress?: (progress: number) => void): Promise<HTMLImageElement> {
+    async load(file: File, _onProgress?: (progress: number) => void): Promise<HTMLImageElement> {
         const { readPsd } = await import('ag-psd');
 
         const buffer = await file.arrayBuffer();

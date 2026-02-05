@@ -4,8 +4,9 @@
  */
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { Annotator, AnnotatorRef } from '@web-media-annotator/react';
-import { WebMediaAnnotator as CoreAnnotator } from '@web-media-annotator/core';
+import { Annotator } from '@web-media-annotator/react';
+import type { AnnotatorRef } from '@web-media-annotator/react';
+import type { WebMediaAnnotator as CoreAnnotator } from '@web-media-annotator/core';
 
 export class WebMediaAnnotatorElement extends HTMLElement {
     private root: Root | null = null;
@@ -51,12 +52,12 @@ export class WebMediaAnnotatorElement extends HTMLElement {
     private render() {
         if (!this.shadowRoot) return;
 
-        const src = this.getAttribute('src') || '';
-        const fps = parseInt(this.getAttribute('fps') || '24');
-        const startFrame = parseInt(this.getAttribute('start-frame') || '0');
-        const width = this.getAttribute('width') || '100%';
-        const height = this.getAttribute('height') || '100%';
-        const preload = this.getAttribute('preload') as 'auto' | 'metadata' | 'force-download' | undefined;
+        // const src = this.getAttribute('src') || '';
+        // const fps = parseInt(this.getAttribute('fps') || '24');
+        // const startFrame = parseInt(this.getAttribute('start-frame') || '0');
+        // const width = this.getAttribute('width') || '100%';
+        // const height = this.getAttribute('height') || '100%';
+        // const preload = this.getAttribute('preload') as 'auto' | 'metadata' | 'force-download' | undefined;
 
         if (!this.root) {
             this.root = createRoot(this.shadowRoot);

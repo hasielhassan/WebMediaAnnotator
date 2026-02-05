@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
-import { WebMediaAnnotator, AppState, MediaRegistry } from '@web-media-annotator/core';
+import { WebMediaAnnotator, MediaRegistry } from '@web-media-annotator/core';
+import type { AppState } from '@web-media-annotator/core';
 import { Toolbar, Popover, ExportProgress } from '@web-media-annotator/ui';
 import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { Player } from '@web-media-annotator/core';
@@ -147,9 +148,10 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                 if (confirm("Clear existing annotations for new media?")) {
                     annotatorRef.current.store.setState({ annotations: [] });
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Failed to load media", err);
-                alert("Failed to load media: " + err.message);
+                const msg = err instanceof Error ? err.message : String(err);
+                alert("Failed to load media: " + msg);
             } finally {
                 setIsLoading(false);
                 setLoadingProgress(null);

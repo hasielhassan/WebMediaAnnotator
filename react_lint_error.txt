@@ -1,0 +1,25 @@
+
+> @web-media-annotator/react@0.1.0 lint
+> eslint src
+
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\react\src\Annotator.tsx
+  151:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\react\src\SyncPanel.tsx
+   3:17  warning  'Wifi' is defined but never used             @typescript-eslint/no-unused-vars
+   3:23  warning  'WifiOff' is defined but never used          @typescript-eslint/no-unused-vars
+   3:56  warning  'Lock' is defined but never used             @typescript-eslint/no-unused-vars
+  14:12  warning  '_users' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  52:44  error    Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  87:15  warning  'id' is assigned a value but never used      @typescript-eslint/no-unused-vars
+
+Γ£û 7 problems (2 errors, 5 warnings)
+
+npm error Lifecycle script `lint` failed with error:
+npm error code 1
+npm error path D:\Development\HasielHassan\WebMediaAnnotator\packages\react
+npm error workspace @web-media-annotator/react@0.1.0
+npm error location D:\Development\HasielHassan\WebMediaAnnotator\packages\react
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c eslint src

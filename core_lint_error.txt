@@ -1,0 +1,40 @@
+
+> @web-media-annotator/core@0.1.0 lint
+> eslint src
+
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\core\src\Renderer.ts
+  228:31  warning  'cx' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  229:31  warning  'cy' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  294:27  warning  'h' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\core\src\Store.ts
+  249:17  warning  'annotations' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\core\src\adapters\GifAdapter.ts
+  52:13  error    'startTime' is never reassigned. Use 'const' instead  prefer-const
+  52:13  warning  'startTime' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+D:\Development\HasielHassan\WebMediaAnnotator\packages\core\src\index.ts
+    5:17  warning  'AppState' is defined but never used           @typescript-eslint/no-unused-vars
+   20:10  warning  'MediaAdapter' is defined but never used       @typescript-eslint/no-unused-vars
+   87:31  warning  'total' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   99:37  warning  'loaded' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  269:31  warning  'pressure' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  324:72  error    Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  443:21  error    Unexpected lexical declaration in case block   no-case-declarations
+  482:21  error    Unexpected lexical declaration in case block   no-case-declarations
+  494:21  error    Unexpected lexical declaration in case block   no-case-declarations
+  511:21  error    Unexpected lexical declaration in case block   no-case-declarations
+  516:21  error    Unexpected lexical declaration in case block   no-case-declarations
+
+Γ£û 17 problems (7 errors, 10 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+
+npm error Lifecycle script `lint` failed with error:
+npm error code 1
+npm error path D:\Development\HasielHassan\WebMediaAnnotator\packages\core
+npm error workspace @web-media-annotator/core@0.1.0
+npm error location D:\Development\HasielHassan\WebMediaAnnotator\packages\core
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c eslint src

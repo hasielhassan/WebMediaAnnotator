@@ -16,7 +16,7 @@ export class NativeAdapter implements MediaAdapter {
         return isVideo || isImage;
     }
 
-    async load(file: File, onProgress?: (progress: number) => void): Promise<HTMLVideoElement | HTMLImageElement> {
+    async load(file: File, _onProgress?: (progress: number) => void): Promise<HTMLVideoElement | HTMLImageElement> {
         const type = file.type;
         const name = file.name.toLowerCase();
 
@@ -46,7 +46,7 @@ export class NativeAdapter implements MediaAdapter {
                 // Important for cross-browser
                 video.playsInline = true;
                 video.muted = true; // Auto-play policies often require mute
-                (video as any).__rawFile = file; // Attach for direct access (e.g. AudioContext)
+                (video as unknown as { __rawFile: File }).__rawFile = file; // Attach for direct access (e.g. AudioContext)
             });
         }
     }
