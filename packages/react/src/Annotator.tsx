@@ -297,7 +297,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                     onStrokeWidthChange={handleWidthChange}
 
                     defaultDuration={state?.defaultDuration || 1}
-                    onDefaultDurationChange={(d) => annotatorRef.current?.store.setState({ defaultDuration: d })}
+                    onDefaultDurationChange={(d: number) => annotatorRef.current?.store.setState({ defaultDuration: d })}
 
                     holdDuration={state?.holdDuration || 1}
                     onHoldDurationChange={(d: number) => {

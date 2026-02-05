@@ -7,7 +7,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build -w packages/core && npm run build -w packages/ui && npm run build -w packages/react && npm run build -w packages/embed && npm run build -w apps/demo",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces",
     "dev:demo": "npm run dev -w apps/demo"
