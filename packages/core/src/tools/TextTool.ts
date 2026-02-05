@@ -184,18 +184,14 @@ export class TextTool extends BaseTool {
             const finalW = inputRect.width / currentCanvasRect.width;
             const finalH = inputRect.height / currentCanvasRect.height;
 
+            // Normalize font size relative to canvas height (same reference as coordinates)
+            // This ensures font scales consistently regardless of viewport zoom
+            const normalizedFontSize = fontSize / currentCanvasRect.height;
             console.log(`[TextTool] Normalized: ${finalX},${finalY} ${finalW}x${finalH}`);
+            console.log(`[TextTool] NormalizedFontSize: ${normalizedFontSize} (ratio to height)`);
 
             if (text.trim()) {
                 const id = existingId || uuidv4();
-
-                // Calculate font size relative to CANVAS BUFFER dimensions
-                // Buffer Height / Visual Height = Resolution Scale
-                // ratio = bufferWidth / visualWidth
-                const scaleRatio = canvas.width / currentCanvasRect.width;
-                const scaledFontSize = fontSize * scaleRatio;
-
-                console.log(`[TextTool] FontSize: ${fontSize} CSS px -> ${scaledFontSize} Canvas px (Ratio: ${scaleRatio})`);
 
                 // Generate Vectors
                 let fallbackPaths = undefined;
@@ -224,7 +220,7 @@ export class TextTool extends BaseTool {
                     style: {
                         color: state.activeColor,
                         width: 1, // Stroke width
-                        fontSize: scaledFontSize
+                        fontSize: normalizedFontSize // Store normalized (ratio to height)
                     }
                 };
 

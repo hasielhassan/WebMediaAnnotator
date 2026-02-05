@@ -69,7 +69,7 @@ export const DEFAULT_STATE: AppState = {
     startFrame: 0,
     annotations: [],
     selectedAnnotationIds: [],
-    activeTool: 'select',
+    activeTool: 'freehand',
     activeColor: '#FF0000',
     activeStrokeWidth: 3,
     defaultDuration: 1, // Default property: 1 frame
@@ -245,9 +245,10 @@ export class Store extends EventEmitter {
             }
         });
 
-        // 2. Apply non-annotation state (viewport, tool etc) directly
+        // 2. Apply non-annotation, non-viewport state (tool settings etc) directly
+        // Exclude: annotations (handled above), viewport (local UI state, not undoable)
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { annotations: _unused, ...rest } = targetState;
+        const { annotations: _unused, viewport: _viewportUnused, ...rest } = targetState;
         this.setState(rest);
     }
 

@@ -32,7 +32,9 @@ export interface ToolbarProps {
 
     // Mode
     isImageMode?: boolean;
+    isMobile?: boolean; // New prop for wrapping behavior
     children?: React.ReactNode;
+    prefix?: React.ReactNode;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -43,7 +45,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     isOnionSkinEnabled, onToggleOnionSkin,
     onionSkinPrevFrames = 3, onionSkinNextFrames = 3, onOnionSkinSettingsChange,
     isImageMode = false,
-    children
+    isMobile = false,
+    children,
+    prefix
 }) => {
     const tools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
@@ -67,18 +71,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     const [localPrevFrames, setLocalPrevFrames] = React.useState(onionSkinPrevFrames);
     const [localNextFrames, setLocalNextFrames] = React.useState(onionSkinNextFrames);
 
-    // Sync local state with props when popover opens, but ONLY check if values differ significantly to avoid loops
-    // We only want to reset local state if the prop changed from an external source (like a preset load),
-    // NOT if it changed because *we* just updated it. 
-    // For now, we'll just sync when the popover opens to ensure it's fresh.
+    // Sync local state with props when popover opens
     React.useEffect(() => {
         if (isGhostingOpen) {
             setLocalPrevFrames(onionSkinPrevFrames);
             setLocalNextFrames(onionSkinNextFrames);
         }
     }, [isGhostingOpen]);
-    // Note: Removed [onionSkinPrevFrames, ...] from dependency because it causes the "stuck" behavior 
-    // if the parent updates slower than the user drags, snapping the slider back.
 
     // Debounce updates to parent
     React.useEffect(() => {
@@ -94,7 +93,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     return (
         <div className={clsx(
             "flex gap-2 p-2 bg-gray-900 border-gray-800",
-            isHorizontal ? "flex-row flex-wrap border-b items-center justify-center" : "flex-col border-r",
+            // Desktop: nowrap + overflow. Mobile: wrap + no overflow mechanism needed usually, just expands height.
+            isHorizontal
+                ? (isMobile ? "flex-row flex-wrap border-b items-center justify-center" : "flex-row flex-nowrap border-b items-center overflow-x-auto no-scrollbar")
+                : "flex-col border-r",
             className
         )}>
             <style>{`
@@ -124,6 +126,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     border-radius: 9999px;
                 }
             `}</style>
+
+            {prefix}
 
             {tools.map(tool => (
                 <button
@@ -409,7 +413,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 />
             )}
 
-            {/* Separator for Children */}
             {children && <div className={clsx("bg-gray-700", isHorizontal ? "w-px h-6 mx-1" : "h-px w-full my-1")} />}
 
             {children}

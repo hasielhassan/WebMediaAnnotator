@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { WebMediaAnnotator, MediaRegistry } from '@web-media-annotator/core';
 import type { AppState } from '@web-media-annotator/core';
 import { Popover, ExportProgress } from '@web-media-annotator/ui';
@@ -10,6 +10,7 @@ import { AnnotatorCanvas } from './components/AnnotatorCanvas';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useHotkeys } from './hooks/useHotkeys';
 import { useMediaIO } from './hooks/useMediaIO';
+import { useAnnotator } from './hooks/useAnnotator';
 
 export interface AnnotatorProps {
     src: string;
@@ -29,8 +30,15 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     src, fps = 24, startFrame = 0, width = '100%', height = '100%', className, preload
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const annotatorRef = useRef<WebMediaAnnotator | null>(null);
-    const [state, setState] = useState<AppState | null>(null);
+
+    // Core Annotator Lifecycle Hook
+    const { instance, state } = useAnnotator({
+        containerRef,
+        src,
+        fps,
+        startFrame,
+        preload
+    });
 
     // Derived States for UI
     // Remove max-height check so high-res landscape phones (Pixel 7, iPhone Max) use Desktop layout (saving vertical space)
@@ -46,55 +54,31 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
         handleBulkExport,
         handleSave,
         handleLoad
-    } = useMediaIO(annotatorRef.current, state);
+    } = useMediaIO(instance, state);
 
     useImperativeHandle(ref, () => ({
-        getInstance: () => annotatorRef.current
+        getInstance: () => instance
     }));
-
-    useEffect(() => {
-        if (!containerRef.current) return;
-
-        const annotator = new WebMediaAnnotator(containerRef.current, {
-            videoSrc: src,
-            fps,
-            startFrame,
-            preload
-        });
-        annotatorRef.current = annotator;
-
-        setState(annotator.store.getState());
-        const onStateChange = (newState: AppState) => {
-            setState({ ...newState });
-        };
-        annotator.store.on('state:changed', onStateChange);
-
-        return () => {
-            annotator.store.off('state:changed', onStateChange);
-            annotator.destroy();
-            annotatorRef.current = null;
-        };
-    }, [src, fps, startFrame]);
 
     // Enable hotkeys: Disable if touch/mobile to prevent virtual keyboard interference? 
     // Actually user said remove Info button. Hotkeys might still be useful if they use a bluetooth keyboard on iPad.
     // So keep hotkeys enabled, just hide the visual Info helper.
-    useHotkeys(annotatorRef.current, true);
+    useHotkeys(instance, true);
 
     // Handlers
-    const handleUndo = () => annotatorRef.current?.store.undo();
-    const handleRedo = () => annotatorRef.current?.store.redo();
+    const handleUndo = () => instance?.store.undo();
+    const handleRedo = () => instance?.store.redo();
 
     // Fix aspect ratio on load
     const handleMediaLoad = () => {
-        if (!annotatorRef.current) return;
+        if (!instance) return;
         // Use exposed getter which casts, OR use internal mediaElement if we exposed it.
         // The getter videoElement returns HTMLVideoElement, but at runtime it might be IG.
         // Let's rely on renderer resize or custom logic.
         // Actually, WebMediaAnnotator handles fitCanvasToVideo internaly on 'loadedmetadata'.
         // We just need to update Container Aspect Ratio.
 
-        const media = annotatorRef.current['mediaElement'] as HTMLVideoElement | HTMLImageElement;
+        const media = instance['mediaElement'] as HTMLVideoElement | HTMLImageElement;
         if (media && containerRef.current) {
             let w, h;
             if (media instanceof HTMLVideoElement) {
@@ -108,7 +92,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
             if (w && h) {
                 const ratio = w / h;
                 containerRef.current.style.aspectRatio = `${ratio}`;
-                annotatorRef.current.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+                instance.renderer.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
             }
         }
     };
@@ -131,19 +115,19 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     //     const newX = mouseX - (mouseX - state.viewport.x) / state.viewport.scale * newScale;
     //     const newY = mouseY - (mouseY - state.viewport.y) / state.viewport.scale * newScale;
 
-    //     annotatorRef.current?.store.setState({
+    //     instance?.store.setState({
     //         viewport: { x: newX, y: newY, scale: newScale }
     //     });
     // };
     useEffect(() => {
-        if (annotatorRef.current) {
+        if (instance) {
             // We can't easily add listener to 'videoElement' if it changes via loadMedia.
             // Better to rely on store state or internal events.
             // The WebMediaAnnotator internal resize observer handles the Canvas/Renderer sync.
             // We just need to sync Container aspect ratio.
             // Let's poll or hook into 'loadedmetadata' on init.
 
-            const media = annotatorRef.current['mediaElement'] as Element;
+            const media = instance['mediaElement'] as Element;
             if (media) {
                 const handler = () => handleMediaLoad();
                 // Video uses loadedmetadata, Image uses load
@@ -155,7 +139,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                 };
             }
         }
-    }, [annotatorRef.current, state?.mediaType]); // Re-run if media type changes (implies new element)
+    }, [instance, state?.mediaType]); // Re-run if media type changes (implies new element)
 
     return (
         <div className={`flex flex-col h-full bg-black text-white ${className || ''}`} style={{ width, height, overflow: 'hidden' }}>
@@ -163,64 +147,64 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
             {/* Top Toolbar Area */}
             <div className={`flex flex-row flex-wrap items-center bg-gray-900 border-b border-gray-800 shrink-0 gap-x-2 gap-y-2 px-2 py-2 min-h-[56px] h-auto justify-start`}>
 
-                {!isMobile && !isTouch && (
-                    <div className="flex items-center">
-                        <Popover
-                            side="bottom"
-                            align="start"
-                            trigger={
-                                <button title="Shortcuts Info" className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors">
-                                    <Info size={24} />
-                                </button>
-                            }
-                            content={
-                                <div className="w-64 p-2 text-xs">
-                                    <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
-                                    <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
-                                        <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
-                                        <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
-                                        <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
-                                        <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
-                                        <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
-                                        <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
-                                        <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
-
-                                        <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
-                                        <span>Select</span> <span className="font-mono text-gray-500">S</span>
-                                        <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
-                                        <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
-                                        <span>Circle</span> <span className="font-mono text-gray-500">C</span>
-                                        <span>Square</span> <span className="font-mono text-gray-500">Q</span>
-                                        <span>Text</span> <span className="font-mono text-gray-500">T</span>
-                                        <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
-                                        <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
-                                        <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
-
-                                        <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
-                                        <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
-                                        <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
-                                        <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
-                                        <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
-                                    </div>
-                                </div>
-                            }
-                        />
-                    </div>
-                )}
-
                 <AnnotatorToolbar
-                    annotator={annotatorRef.current}
+                    annotator={instance}
                     state={state}
                     className="border-0 bg-transparent flex-1 justify-center min-w-0"
                     orientation="horizontal"
                     isMobile={isMobile}
+                    prefix={
+                        !isMobile && !isTouch ? (
+                            <Popover
+                                side="bottom"
+                                align="start"
+                                trigger={
+                                    <button title="Shortcuts Info" className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-blue-400 transition-colors">
+                                        <Info size={24} />
+                                    </button>
+                                }
+                                content={
+                                    <div className="w-64 p-2 text-xs">
+                                        <h3 className="font-bold text-white mb-2 pb-1 border-b border-gray-700">Keyboard Shortcuts</h3>
+                                        <div className="grid grid-cols-[1fr_auto] gap-y-1 gap-x-4 text-gray-300">
+                                            <span>Play / Pause</span> <span className="font-mono text-gray-500">Space</span>
+                                            <span>Prev / Next Frame</span> <span className="font-mono text-gray-500">← / →</span>
+                                            <span>Prev / Next Annotation</span> <span className="font-mono text-gray-500">Ctrl + ← / →</span>
+                                            <span>Undo / Redo</span> <span className="font-mono text-gray-500">Ctrl + Z / Y</span>
+                                            <span>Copy Selected / Frame</span> <span className="font-mono text-gray-500">Ctrl + C</span>
+                                            <span>Paste</span> <span className="font-mono text-gray-500">Ctrl + V</span>
+                                            <span>Delete Selected</span> <span className="font-mono text-gray-500">Del / Backspace</span>
+
+                                            <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Tools</h3>
+                                            <span>Select</span> <span className="font-mono text-gray-500">S</span>
+                                            <span>Pencil</span> <span className="font-mono text-gray-500">P</span>
+                                            <span>Arrow</span> <span className="font-mono text-gray-500">A</span>
+                                            <span>Circle</span> <span className="font-mono text-gray-500">C</span>
+                                            <span>Square</span> <span className="font-mono text-gray-500">Q</span>
+                                            <span>Text</span> <span className="font-mono text-gray-500">T</span>
+                                            <span>Eraser</span> <span className="font-mono text-gray-500">E</span>
+                                            <span>Toggle Ghosting</span> <span className="font-mono text-gray-500">G</span>
+                                            <span>Toggle Hold (3fr)</span> <span className="font-mono text-gray-500">H</span>
+
+                                            <h3 className="font-bold text-white mt-2 mb-1 pb-1 border-b border-gray-700 col-span-2">Mouse</h3>
+                                            <span>Pan Canvas</span> <span className="font-mono text-gray-500">Middle Click (Hold)</span>
+                                            <span>Zoom</span> <span className="font-mono text-gray-500">Scroll Wheel</span>
+                                            <span>Reset View</span> <span className="font-mono text-gray-500">R</span>
+                                            <span>Stroke Size</span> <span className="font-mono text-gray-500">+ / -</span>
+                                        </div>
+                                    </div>
+                                }
+                            />
+                        ) : undefined
+                    }
                 >
+
                     {/* Injected System Tools */}
                     <button title="Undo" onClick={handleUndo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Undo2 size={24} /></button>
                     <button title="Redo" onClick={handleRedo} className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"><Redo2 size={24} /></button>
 
                     <div className="flex items-center">
-                        <SyncPanel annotator={annotatorRef.current} />
+                        <SyncPanel annotator={instance} />
                     </div>
 
                     <Popover
@@ -301,7 +285,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                         onClick={() => {
                             const current = state?.currentFrame || 0;
                             const keep = state?.annotations.filter(a => a.frame !== current) || [];
-                            annotatorRef.current?.store.setState({ annotations: keep });
+                            instance?.store.setState({ annotations: keep });
                         }}
                         className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/30 text-red-300 transition-colors"
                     >
@@ -312,7 +296,7 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
                         title="Clear All Annotations"
                         onClick={() => {
                             if (confirm('Clear all annotations?')) {
-                                annotatorRef.current?.store.setState({ annotations: [] });
+                                instance?.store.setState({ annotations: [] });
                             }
                         }}
                         className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-red-900/50 text-red-500 transition-colors"
@@ -324,12 +308,12 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
 
             <AnnotatorCanvas
                 ref={containerRef}
-                annotator={annotatorRef.current}
+                annotator={instance}
                 state={state}
             />
 
             <AnnotatorControls
-                annotator={annotatorRef.current}
+                annotator={instance}
                 state={state}
                 isMobile={isMobile}
             />

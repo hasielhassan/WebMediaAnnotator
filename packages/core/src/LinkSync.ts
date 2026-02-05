@@ -11,9 +11,9 @@ interface SyncUser {
 }
 
 export type Message =
-    | { type: 'sync-step-1'; data: Uint8Array } // Send State Vector
-    | { type: 'sync-step-2'; data: Uint8Array } // Send Update (Diff)
-    | { type: 'update'; data: Uint8Array }      // Incremental Update
+    | { type: 'sync-step-1'; data: number[] } // Send State Vector (as Array for JSON compat)
+    | { type: 'sync-step-2'; data: number[] } // Send Update (Diff) (as Array for JSON compat)
+    | { type: 'update'; data: number[] }      // Incremental Update (as Array for JSON compat)
     | { type: 'announce-user'; user: SyncUser }
     | { type: 'playback'; action: 'play' | 'pause' | 'seek'; frame?: number; time?: number }
     | { type: 'ping' };
@@ -58,7 +58,8 @@ export class LinkSync extends EventEmitter {
             // 'origin' is useful to distinguish local vs remote.
             // If origin is NOT this class instance, it means it's a local change (from Store).
             if (origin !== this) {
-                this.broadcast({ type: 'update', data: update });
+                // Convert Uint8Array to Array for JSON serialization over PeerJS
+                this.broadcast({ type: 'update', data: Array.from(update) });
             }
         });
     }
@@ -143,7 +144,8 @@ export class LinkSync extends EventEmitter {
 
             // 1. Send Sync Step 1: My State Vector
             const stateVector = Y.encodeStateVector(this.doc);
-            if (conn.open) conn.send({ type: 'sync-step-1', data: stateVector });
+            // Convert Uint8Array to Array for JSON serialization over PeerJS
+            if (conn.open) conn.send({ type: 'sync-step-1', data: Array.from(stateVector) });
 
             // 2. Announce User Trigger
             this.emit('request-announce');
@@ -197,25 +199,29 @@ export class LinkSync extends EventEmitter {
             switch (msg.type) {
                 case 'sync-step-1': {
                     // They sent their State Vector. We calculate Diff (what they are missing) and send it back.
-                    const data = msg.data;
+                    // Convert back from Array to Uint8Array (PeerJS JSON serialization)
+                    const data = new Uint8Array(msg.data);
                     const diff = Y.encodeStateAsUpdate(this.doc, data);
-                    if (conn.open) conn.send({ type: 'sync-step-2', data: diff });
+                    // Convert Uint8Array to Array for sending
+                    if (conn.open) conn.send({ type: 'sync-step-2', data: Array.from(diff) });
                     break;
                 }
                 case 'sync-step-2': {
                     // They sent the Diff. We apply it.
-                    const data = msg.data;
+                    // Convert back from Array to Uint8Array
+                    const data = new Uint8Array(msg.data);
                     Y.applyUpdate(this.doc, data, this);
                     break;
                 }
                 case 'update': {
                     // Incremental update
-                    const data = msg.data;
+                    // Convert back from Array to Uint8Array
+                    const data = new Uint8Array(msg.data);
                     Y.applyUpdate(this.doc, data, this);
 
                     // HOST RELAY LOGIC
                     if (this.isHost) {
-                        // Forward to all OTHER peers
+                        // Forward to all OTHER peers (msg already has Array data format)
                         this.connections.forEach((otherConn) => {
                             if (otherConn.peer !== conn.peer && otherConn.open) {
                                 otherConn.send(msg);

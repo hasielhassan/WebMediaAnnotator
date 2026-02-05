@@ -8,6 +8,7 @@ import { Player } from './Player';
 import { LinkSync, Message } from './LinkSync';
 import { Renderer } from './Renderer';
 import { PluginManager } from './PluginManager';
+import { InputManager, NormalizedPointerEvent } from './InputManager';
 import { BaseTool } from './tools/BaseTool';
 import { FreehandTool } from './tools/FreehandTool';
 import { ShapeTool } from './tools/ShapeTool';
@@ -27,6 +28,7 @@ export class WebMediaAnnotator {
     public renderer: Renderer;
     public plugins: PluginManager;
     public registry: MediaRegistry;
+    public inputManager: InputManager | null = null;
 
     // Tools
     private tools: Map<string, BaseTool> = new Map();
@@ -211,7 +213,7 @@ export class WebMediaAnnotator {
             }
         }));
 
-        this.initInteraction();
+        this.initInputManager();
         this.initShortcuts();
         this.initResizeObserver();
         this.initSyncBinding();
@@ -224,133 +226,59 @@ export class WebMediaAnnotator {
         });
     }
 
-    private initInteraction() {
-        // Multi-touch State
-        const activePointers = new Map<number, PointerEvent>();
-        let initialPinchDist: number | null = null;
-        let initialScale = 1;
+    private initInputManager() {
+        this.inputManager = new InputManager({
+            canvas: this.canvasElement,
+            store: this.store,
+            callbacks: {
+                onInteractionStart: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.tools.get(toolName);
+                    if (tool) tool.onMouseDown(e.x, e.y, e.originalEvent);
+                },
+                onInteractionMove: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.tools.get(toolName);
+                    if (tool) tool.onMouseMove(e.x, e.y, e.originalEvent);
+                },
+                onInteractionEnd: (e: NormalizedPointerEvent) => {
+                    const toolName = this.store.getState().activeTool;
+                    const tool = this.tools.get(toolName);
+                    if (tool) tool.onMouseUp(e.x, e.y, e.originalEvent);
+                },
+                onPinchZoom: (scale: number) => {
+                    const vp = this.store.getState().viewport;
+                    this.store.setState({
+                        viewport: { ...vp, scale }
+                    });
+                },
+                onWheelZoom: (delta: number) => {
+                    const zoomSpeed = 0.001;
+                    const vp = this.store.getState().viewport;
+                    const newScale = Math.min(Math.max(0.1, vp.scale + (-delta * zoomSpeed * vp.scale)), 5);
+                    this.store.setState({
+                        viewport: { ...vp, scale: newScale }
+                    });
+                },
+                onMiddleMouseDown: (e: NormalizedPointerEvent) => {
+                    this.previousTool = this.store.getState().activeTool;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    this.store.setState({ activeTool: 'pan' as any });
+                    const panTool = this.tools.get('pan');
+                    if (panTool) panTool.onMouseDown(e.x, e.y, e.originalEvent);
+                },
+                onMiddleMouseUp: (e: NormalizedPointerEvent) => {
+                    const panTool = this.tools.get('pan');
+                    if (panTool) panTool.onMouseUp(e.x, e.y, e.originalEvent);
 
-        const getDist = (p1: PointerEvent, p2: PointerEvent) => {
-            return Math.sqrt(Math.pow(p1.clientX - p2.clientX, 2) + Math.pow(p1.clientY - p2.clientY, 2));
-        };
-
-        // Simple Interaction Dispatcher
-        const getXY = (e: MouseEvent | PointerEvent) => {
-            const rect = this.canvasElement.getBoundingClientRect();
-            // With CSS Transforms, getBoundingClientRect returns the VISUAL position/size.
-            return {
-                x: (e.clientX - rect.left) / rect.width,
-                y: (e.clientY - rect.top) / rect.height,
-                // pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
-                // pressure: (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5
-            };
-        };
-
-        this.canvasElement.addEventListener('pointerdown', (e) => {
-            activePointers.set(e.pointerId, e);
-            this.canvasElement.setPointerCapture(e.pointerId);
-
-            if (activePointers.size === 2) {
-                // Start Pinch
-                const points = Array.from(activePointers.values());
-                initialPinchDist = getDist(points[0], points[1]);
-                initialScale = this.store.getState().viewport.scale;
-                return;
-            }
-
-            // Middle Mouse (Button 1) -> Temporary Pan
-            if (e.button === 1) {
-                e.preventDefault();
-                this.previousTool = this.store.getState().activeTool;
-                this.store.setState({ activeTool: 'pan' });
-                const { x, y } = getXY(e);
-                const panTool = this.tools.get('pan');
-                if (panTool) panTool.onMouseDown(x, y, e);
-                return;
-            }
-
-            if (activePointers.size === 1) {
-                const { x, y } = getXY(e);
-                const toolName = this.store.getState().activeTool;
-                const tool = this.tools.get(toolName);
-                if (tool) tool.onMouseDown(x, y, e);
+                    if (this.previousTool) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        this.store.setState({ activeTool: this.previousTool as any });
+                        this.previousTool = null;
+                    }
+                }
             }
         });
-
-        window.addEventListener('pointermove', (e) => {
-            const rect = this.canvasElement.getBoundingClientRect();
-            // Update pointer record
-            if (activePointers.has(e.pointerId)) {
-                activePointers.set(e.pointerId, e);
-            }
-
-            // Pinch Zoom Logic
-            if (activePointers.size === 2 && initialPinchDist) {
-                const points = Array.from(activePointers.values());
-                const dist = getDist(points[0], points[1]);
-                const scaleFactor = dist / initialPinchDist;
-
-                // Update Scale (clamped)
-                const newScale = Math.min(Math.max(0.1, initialScale * scaleFactor), 5);
-
-                const vp = this.store.getState().viewport;
-                this.store.setState({
-                    viewport: { ...vp, scale: newScale }
-                });
-                return;
-            }
-
-            // Standard Move
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
-
-            const toolName = this.store.getState().activeTool;
-            const tool = this.tools.get(toolName);
-            if (tool) tool.onMouseMove(x, y, e);
-        });
-
-        window.addEventListener('pointerup', (e) => {
-            activePointers.delete(e.pointerId);
-            this.canvasElement.releasePointerCapture(e.pointerId);
-
-            if (activePointers.size < 2) {
-                initialPinchDist = null;
-            }
-
-            // Middle Mouse Up -> Revert Tool
-            if (e.button === 1 && this.previousTool) {
-                const panTool = this.tools.get('pan');
-                const rect = this.canvasElement.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
-                if (panTool) panTool.onMouseUp(x, y, e);
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                this.store.setState({ activeTool: this.previousTool as any });
-                this.previousTool = null;
-                return;
-            }
-
-            const rect = this.canvasElement.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
-            const toolName = this.store.getState().activeTool;
-            const tool = this.tools.get(toolName);
-            if (tool) tool.onMouseUp(x, y, e);
-        });
-
-        // Wheel Zoom
-        this.canvasElement.addEventListener('wheel', (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                const zoomSpeed = 0.001;
-                const vp = this.store.getState().viewport;
-                const newScale = Math.min(Math.max(0.1, vp.scale + (-e.deltaY * zoomSpeed * vp.scale)), 5); // Logarithmic-ish
-                this.store.setState({
-                    viewport: { ...vp, scale: newScale }
-                });
-            }
-        }, { passive: false });
     }
 
     private initShortcuts() {
@@ -365,8 +293,10 @@ export class WebMediaAnnotator {
             if (ann.id.startsWith('temp_')) return; // Filter temp
 
             console.log(`[LinkSync DEBUG] Sending to Yjs: ${ann.id}, Dur: ${ann.duration}`);
-            // Add to Yjs Map
-            this.sync.annotationsMap.set(ann.id, ann);
+            // Strip fallbackPaths before sync (contains complex opentype.js objects that cause serialization issues)
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { fallbackPaths, ...syncableAnn } = ann;
+            this.sync.annotationsMap.set(ann.id, syncableAnn);
         });
 
         this.store.on('annotation:updated', (id, updates, fromRemote) => {
@@ -376,7 +306,10 @@ export class WebMediaAnnotator {
             // Update Yjs Map entry
             const existing = this.sync.annotationsMap.get(id);
             if (existing) {
-                this.sync.annotationsMap.set(id, { ...existing, ...updates });
+                // Strip fallbackPaths before sync
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { fallbackPaths, ...syncableUpdates } = updates;
+                this.sync.annotationsMap.set(id, { ...existing, ...syncableUpdates });
             }
         });
 
@@ -704,7 +637,12 @@ export class WebMediaAnnotator {
     }
 
     destroy() {
-        // Cleanup...
+        // Cleanup InputManager
+        if (this.inputManager) {
+            this.inputManager.destroy();
+            this.inputManager = null;
+        }
+        // Cleanup DOM
         if (this.mediaElement && this.mediaElement.parentNode) {
             this.mediaElement.parentNode.removeChild(this.mediaElement);
         }
@@ -719,4 +657,5 @@ export * from './Player';
 export * from './LinkSync';
 export * from './Renderer';
 export * from './PluginManager';
-export * from './MediaRegistry'; // Export Registry
+export * from './MediaRegistry';
+export * from './InputManager';
