@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WebMediaAnnotator, AppState, MediaRegistry } from '@web-media-annotator/core';
+import { WebMediaAnnotator, AppState } from '@web-media-annotator/core';
 
 export function useMediaIO(annotator: WebMediaAnnotator | null, state: AppState | null) {
     const [exportProgress, setExportProgress] = useState<{ current: number, total: number } | null>(null);

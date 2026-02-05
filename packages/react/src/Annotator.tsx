@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { WebMediaAnnotator, MediaRegistry } from '@web-media-annotator/core';
 import type { AppState } from '@web-media-annotator/core';
-import { Toolbar, Popover, ExportProgress } from '@web-media-annotator/ui';
-import { Undo2, Redo2, ChevronLeft, ChevronRight, SkipBack, SkipForward, Download, Trash2, Eraser, Play, Pause, Repeat, Volume2, VolumeX, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
-import { Player } from '@web-media-annotator/core';
+import { Popover, ExportProgress } from '@web-media-annotator/ui';
+import { Undo2, Redo2, Download, Trash2, Eraser, FileJson, Image as ImageIcon, Upload, Info, FolderDown, Files } from 'lucide-react';
 import { SyncPanel } from './SyncPanel';
 import { AnnotatorToolbar } from './components/AnnotatorToolbar';
 import { AnnotatorControls } from './components/AnnotatorControls';
@@ -32,11 +31,9 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     const containerRef = useRef<HTMLDivElement>(null);
     const annotatorRef = useRef<WebMediaAnnotator | null>(null);
     const [state, setState] = useState<AppState | null>(null);
-    const [useTimecode, setUseTimecode] = useState(false);
 
     // Derived States for UI
     const isMobile = useMediaQuery('(max-width: 768px)');
-    const [showMobileTools, setShowMobileTools] = useState(true);
 
     // IO Hook
     const {
@@ -81,24 +78,8 @@ export const Annotator = forwardRef<AnnotatorRef, AnnotatorProps>(({
     useHotkeys(annotatorRef.current, true);
 
     // Handlers
-    const handleToolSelect = (tool: string) => annotatorRef.current?.store.setState({ activeTool: tool as AppState['activeTool'], selectedAnnotationIds: [] });
-    const handleColorChange = (color: string) => annotatorRef.current?.store.setState({ activeColor: color });
-    const handleWidthChange = (width: number) => annotatorRef.current?.store.setState({ activeStrokeWidth: width });
-
-    const handlePlayPause = () => state?.isPlaying ? annotatorRef.current?.player.pause() : annotatorRef.current?.player.play();
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => annotatorRef.current?.player.seekToFrame(parseInt(e.target.value));
-
     const handleUndo = () => annotatorRef.current?.store.undo();
     const handleRedo = () => annotatorRef.current?.store.redo();
-
-    // Calculate markers - Moved to AnnotatorControls
-    // const markers = React.useMemo(() => {
-    //     if (!state || !state.annotations) return [];
-    //     const frames = new Set(state.annotations.map(a => a.frame));
-    //     return Array.from(frames).sort((a, b) => a - b);
-    // }, [state?.annotations]);
-
-    // const totalFrames = state && state.duration ? Math.floor(state.duration * state.fps) : 100; // Moved to AnnotatorControls
 
     // Fix aspect ratio on load
     const handleMediaLoad = () => {

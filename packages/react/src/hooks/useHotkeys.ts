@@ -52,14 +52,14 @@ export function useHotkeys(annotator: WebMediaAnnotator | null, enabled: boolean
                         const addedIds: string[] = [];
 
                         clipboardRef.current.forEach(template => {
-                            const newAnn = JSON.parse(JSON.stringify(template));
+                            const newAnn: Annotation = JSON.parse(JSON.stringify(template)); // Use Annotation type
                             newAnn.id = crypto.randomUUID();
                             newAnn.frame = currentFrame;
 
                             // Apply offset if pasting on the SAME frame as original source
                             if (template.frame === currentFrame) {
                                 if (newAnn.points) {
-                                    newAnn.points = newAnn.points.map((p: any) => ({
+                                    newAnn.points = newAnn.points.map(p => ({ // No 'any' needed here, p is already typed by Annotation['points']
                                         ...p,
                                         x: p.x + 0.02,
                                         y: p.y + 0.02

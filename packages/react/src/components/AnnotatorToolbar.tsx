@@ -15,6 +15,7 @@ export const AnnotatorToolbar: React.FC<AnnotatorToolbarProps> = ({
     state,
     className,
     orientation = 'horizontal',
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     isMobile = false
 }) => {
     // Handlers

@@ -18,7 +18,6 @@ export const SyncPanel: React.FC<SyncPanelProps> = ({ annotator }) => {
     // User Identity State
     const [username, setUsername] = useState<string>('');
     const [userColor, setUserColor] = useState<string>('#3b82f6');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [connectedUsers, setConnectedUsers] = useState<{ id: string, name: string, color: string }[]>([]);
 
     useEffect(() => {

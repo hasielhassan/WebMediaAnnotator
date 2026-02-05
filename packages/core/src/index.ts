@@ -84,7 +84,7 @@ export class WebMediaAnnotator {
                         const response = await fetch(src);
                         if (!response.ok) throw new Error(`Failed to fetch ${src}: ${response.statusText}`);
 
-                        const contentLength = response.headers.get('content-length');
+                        // const contentLength = response.headers.get('content-length');
                         // const total = contentLength ? parseInt(contentLength, 10) : 0;
                         // let loaded = 0;
 
@@ -242,7 +242,7 @@ export class WebMediaAnnotator {
                 x: (e.clientX - rect.left) / rect.width,
                 y: (e.clientY - rect.top) / rect.height,
                 // pressure: (e instanceof PointerEvent) ? (e.pressure > 0 ? e.pressure : 0.5) : 0.5
-                pressure: (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5
+                // pressure: (e instanceof PointerEvent && e.pressure > 0) ? e.pressure : 0.5
             };
         };
 
@@ -270,7 +270,7 @@ export class WebMediaAnnotator {
             }
 
             if (activePointers.size === 1) {
-                const { x, y, pressure } = getXY(e);
+                const { x, y } = getXY(e);
                 const toolName = this.store.getState().activeTool;
                 const tool = this.tools.get(toolName);
                 if (tool) tool.onMouseDown(x, y, e);
