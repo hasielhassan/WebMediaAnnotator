@@ -29,4 +29,4 @@ jobs:
       #   TODO: Enable tests when we have a test runner setup (Vitest/Jest)
 
       - name: Build
-        run: npm run build --workspaces
+        run: npm run build
